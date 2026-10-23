@@ -62,6 +62,10 @@ El servidor HTTP escucha en el puerto `3000` por defecto. Podés cambiarlo con `
 | --- | --- |
 | `DISCORD_TOKEN` | Token del bot. |
 | `GUILD_ID` | ID del servidor donde opera el bot y registra `/reclamar-boost`. |
+| `ROLE_ID_ORO` | ID del rol de Discord Rango Oro. |
+| `ROLE_ID_DIAMANTE` | ID del rol de Discord Rango Diamante. |
+| `ROLE_ID_NETHERITE` | ID del rol de Discord Rango Netherite. |
+| `ROLE_ID_NETHERITE_PLUS` | ID del rol de Discord Rango Netherite+. |
 
 ### Boosters y Minecraft (necesarias para entregar recompensas de Minecraft)
 
@@ -114,8 +118,10 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 - Habilitá los intents de servidor y miembros (`Guilds`, `GuildMembers`) y mensajes de servidor (`GuildMessages`) en el Developer Portal.
 - Dale al bot permiso para ver el servidor y administrar roles.
 - Ubicá el rol del bot por encima de los roles de rango y boosters que deba asignar o quitar.
-- Completá los IDs de roles y precios en `src/config/ranks.js`; los beneficios por booster están en `src/config/boosts.js`.
+- Configurá los IDs de roles en las variables `ROLE_ID_*` del `.env`; los nombres y precios están en `src/config/ranks.js`. Los beneficios por booster están en `src/config/boosts.js`.
 - Mantené el bot en el servidor indicado por `GUILD_ID`.
+
+Los IDs de Discord son identificadores de configuración, no credenciales secretas; se leen desde `.env` para evitar valores específicos del servidor en el código. El `.env` está excluido de Git y no se debe publicar.
 
 ## Rutas HTTP
 

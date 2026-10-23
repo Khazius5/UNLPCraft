@@ -2,6 +2,13 @@
 
 Registro de cambios del bot. Esta primera entrada resume las diferencias entre el código actual y la versión que ya estaba versionada en GitHub al iniciar este registro. Las modificaciones descritas aquí son cambios locales hasta que se publiquen en el repositorio.
 
+## 23-10-2026 — Configuración externa de roles
+
+### Modificado
+
+- `src/config/ranks.js`: los IDs de los roles de Discord ahora se leen desde `ROLE_ID_*` en `.env`; la aplicación informa explícitamente si falta alguna variable requerida.
+- `README.md`: se documentaron las variables para los roles y se aclaró que `.env` no debe publicarse.
+
 ## 23-10-2026 — Funciones de compras y boosters
 
 ### Agregado
