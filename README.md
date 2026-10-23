@@ -149,3 +149,8 @@ Los IDs de Discord son identificadores de configuración, no credenciales secret
 
 - La confirmación de pagos y el webhook de Mercado Pago pertenecen al backend. Este bot no recibe notificaciones de pago directamente; consume la cola de compras aprobadas del backend para entregar roles.
 - El consumidor del backend procesa notificaciones cada 15 segundos y reconcilia pagos pendientes aproximadamente cada minuto.
+
+### Cosas a implementar
+
+- Agregar en el backend una tarea programada para reconciliar pagos pendientes, con monitoreo y registro de resultados. Actualmente el bot invoca `POST /api/payments/reconcile-pending` aproximadamente cada minuto. Cuando la tarea del backend esté implementada y verificada, retirar esa responsabilidad del consumidor del bot para que este se limite a procesar notificaciones y asignar roles de Discord.
+- Incorporar pruebas de integración entre el backend y el bot para verificar el ciclo completo de una compra aprobada, incluyendo la entrega del rol y el reporte de éxito o error al backend.
