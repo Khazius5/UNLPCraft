@@ -12,3 +12,4 @@ module.exports = {
   token: requireEnv('DISCORD_TOKEN'),
   clientId: requireEnv('CLIENT_ID'),
 };
+
