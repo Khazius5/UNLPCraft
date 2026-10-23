@@ -1,19 +1,41 @@
+const crypto = require('crypto');
 const mc = require('./minecraft');
 const RANKS = require('../config/ranks');
 const REWARDS = require('../config/boosts');
 const { db, save } = require('./store');
+const { settleBoost } = require('./boostQueue');
+const { deliverOnce } = require('./onceOnlyDelivery');
+const { getGrantExpiration, getLatestExpiration, grantRole, reconcileExpiredRoles } = require('./roleEntitlements');
 
 const DAY = 24 * 60 * 60 * 1000;
 const NICK_RE = /^[A-Za-z0-9_]{3,16}$/;
 const busy = new Set();
 
-async function onBoostSettled(userId, count, channel) {
-    const boosts = Math.min(count, 2); // más de 2 se trata como 2
-    (db.pending[userId] ||= []).push({ boosts, createdAt: Date.now() });
-    save();
-    await channel
-        ?.send(`¡Gracias por el boost, <@${userId}>! Usá \`/reclamar-boost\` con tu nick de Minecraft para recibir tu recompensa.`)
-        .catch(() => { });
+db.pending ||= {};
+db.boostEvents ||= {};
+
+async function settlePendingBoost(userId, client) {
+    const previousEvent = db.boostEvents[userId] && { ...db.boostEvents[userId] };
+    const settled = settleBoost(db, userId, Date.now(), crypto.randomUUID());
+    if (!settled) return false;
+    try {
+        save();
+    } catch (error) {
+        db.boostEvents[userId] = previousEvent;
+        db.pending[userId] = db.pending[userId].filter((claim) => claim.id !== settled.claim.id);
+        if (db.pending[userId].length === 0) delete db.pending[userId];
+        throw error;
+    }
+
+    if (settled.channelId) {
+        try {
+            const channel = await client.channels.fetch(settled.channelId);
+            await channel.send(`¡Gracias por el boost, <@${userId}>! Usá \`/reclamar-boost\` con tu nick de Minecraft para recibir tu recompensa.`);
+        } catch (error) {
+            console.error('No se pudo notificar el boost asentado:', error.message);
+        }
+    }
+    return true;
 }
 
 async function claimBoost(member, nick) {
@@ -23,34 +45,67 @@ async function claimBoost(member, nick) {
     if (busy.has(member.id)) return { msg: 'Tu reclamo ya se está procesando.' };
 
     const reward = REWARDS[claim.boosts];
+    if (!reward) throw new Error(`No hay recompensa configurada para ${claim.boosts} boost(s).`);
     const rank = RANKS[reward.rank];
+    if (!rank) throw new Error(`El rango de booster "${reward.rank}" no está configurado.`);
     busy.add(member.id);
     try {
-        if (!claim.moneyGiven) {
-            const r = await mc.run(`eco give ${nick} ${reward.money}`);
-            console.log('eco give →', JSON.stringify(r));
-            claim.moneyGiven = true; save();
+        if (claim.minecraftNick && claim.minecraftNick !== nick) {
+            return { msg: `Este reclamo ya está asociado al nick ${claim.minecraftNick}. Usá ese mismo nick para continuar.` };
         }
-        if (!claim.rankGiven) {
-            const r = await mc.run(`lp user ${nick} parent addtemp ${reward.minecraftGroup} ${reward.days}d accumulate`);
-            console.log('lp addtemp →', JSON.stringify(r));
-            claim.rankGiven = true; save();
-        }
-        if (reward.tagPermission && !claim.tagGiven) {
-            const r = await mc.run(
-                `lp user ${nick} permission settemp ${reward.tagPermission} true ${reward.days}d accumulate`
+        claim.minecraftNick ||= nick;
+        claim.id ||= crypto.randomUUID();
+        if (claim.moneyGiven && !claim.moneyDelivery) claim.moneyDelivery = 'done';
+        if (claim.rankGiven && !claim.rankDelivery) claim.rankDelivery = 'done';
+        if (claim.tagGiven && !claim.tagDelivery) claim.tagDelivery = 'done';
+        save();
+
+        try {
+            await deliverOnce(
+                claim,
+                'moneyDelivery',
+                `eco give ${claim.minecraftNick} ${reward.money}`,
+                (command) => mc.run(command, 0),
+                save,
             );
-            console.log('tag permission →', JSON.stringify(r));
-            claim.tagGiven = true; save();
+            await deliverOnce(
+                claim,
+                'rankDelivery',
+                `lp user ${claim.minecraftNick} parent addtemp ${reward.minecraftGroup} ${reward.days}d accumulate`,
+                (command) => mc.run(command, 0),
+                save,
+            );
+            if (reward.tagPermission) {
+                await deliverOnce(
+                    claim,
+                    'tagDelivery',
+                    `lp user ${claim.minecraftNick} permission settemp ${reward.tagPermission} true ${reward.days}d accumulate`,
+                    (command) => mc.run(command, 0),
+                    save,
+                );
+            }
+        } catch (error) {
+            if (error.manualReview) {
+                console.error('Entrega de recompensa en revisión manual:', error.cause?.message || error.message);
+                return {
+                    msg: `La entrega de ${rank.title} requiere revisión manual. No vuelvas a reclamarla hasta verificar el estado en Minecraft.`,
+                };
+            }
+            throw error;
         }
 
-        if (!claim.roleGiven) {
-            await member.roles.add(rank.discordRoleId);
-            const cur = db.roles[member.id];
-            const base = cur && cur.expiresAt > Date.now() ? cur.expiresAt : Date.now();
-            db.roles[member.id] = { roleId: rank.discordRoleId, expiresAt: base + reward.days * DAY };
-            claim.roleGiven = true; save();
-        }
+        const grantId = `booster:${claim.id}`;
+        const existingExpiration = getGrantExpiration(member.id, rank.discordRoleId, grantId);
+        const expiresAt = existingExpiration
+            ?? Math.max(Date.now(), getLatestExpiration(member.id, rank.discordRoleId, 'booster')) + reward.days * DAY;
+        await grantRole(member, {
+            userId: member.id,
+            roleId: rank.discordRoleId,
+            grantId,
+            source: 'booster',
+            expiresAt,
+        });
+
         db.pending[member.id].shift();
         save();
     } catch (e) {
@@ -66,24 +121,20 @@ async function claimBoost(member, nick) {
 }
 
 function startExpiryJob(client) {
+    let running = false;
     const tick = async () => {
-        const now = Date.now();
-        for (const [key, r] of Object.entries(db.roles)) {
-            const userId = r.userId || key;
-            if (r.expiresAt > now) continue;
-            try {
-                const guild = await client.guilds.fetch(process.env.GUILD_ID);
-                const member = await guild.members.fetch(userId);
-                await member.roles.remove(r.roleId);
-            } catch (e) {
-                if (e.code !== 10007 && e.code !== 10013) { console.error(e); continue; }
-            }
-            delete db.roles[key];
-            save();
+        if (running) return;
+        running = true;
+        try {
+            await reconcileExpiredRoles(client);
+        } catch (error) {
+            console.error('[Expiración] No se pudieron revisar los roles:', error.message);
+        } finally {
+            running = false;
         }
     };
-    tick();
-    setInterval(tick, 10 * 60 * 1000);
+    void tick();
+    setInterval(() => void tick(), 10 * 60 * 1000);
 }
 
-module.exports = { onBoostSettled, claimBoost, startExpiryJob };
+module.exports = { claimBoost, settlePendingBoost, startExpiryJob };

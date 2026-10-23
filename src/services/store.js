@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const FILE = path.join(__dirname, '../../data/boosts.json');
-let db = { pending: {}, roles: {}, processed: {} };
+let db = { pending: {}, roles: {}, processed: {}, roleEntitlements: {}, boostEvents: {} };
 
 try {
   db = { ...db, ...JSON.parse(fs.readFileSync(FILE, 'utf8')) };

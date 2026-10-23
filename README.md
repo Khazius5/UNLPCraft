@@ -18,7 +18,9 @@ Bot de Discord para gestionar roles de la comunidad, recompensas por boosts y no
 - Detecta los mensajes de boost del servidor y registra una recompensa pendiente.
 - El booster la reclama con `/reclamar-boost`, indicando su nickname de Minecraft.
 - Mediante RCON, entrega dinero y un grupo temporal de LuckPerms; en Discord, asigna el rol Diamante durante 30 días.
-- Guarda las recompensas pendientes y los vencimientos en `data/boosts.json`. El bot revisa periódicamente y retira los roles de Discord vencidos.
+- Guarda las recompensas pendientes, los boosts en su ventana de agrupación y los derechos de roles por origen en `data/boosts.json`. Si un booster y una compra comparten el rol Diamante, el vencimiento de uno no quita el derecho que todavía tenga el otro.
+- Si una conexión RCON falla de forma ambigua, la operación queda en revisión manual y no se reenvía automáticamente para evitar duplicar dinero o duración de rango. Para resolverla, detené el bot, verificá Minecraft y editá el estado de esa acción en `data/boosts.json`: dejala en `done` si se entregó o quitá su estado solo si confirmaste que no se ejecutó. No borres el estado `processing`/`manual_review` sin verificar primero.
+- El bot revisa periódicamente los vencimientos; si Discord falla temporalmente al quitar un rol, conserva el registro y vuelve a intentarlo.
 
 > Las recompensas de Minecraft son exclusivas de los boosters. Los pagos no usan RCON ni asignan rangos de Minecraft.
 
@@ -53,6 +55,12 @@ Bot de Discord para gestionar roles de la comunidad, recompensas por boosts y no
    ```
 
 El servidor HTTP escucha en el puerto `3000` por defecto. Podés cambiarlo con `PORT`.
+
+Para ejecutar las pruebas automatizadas:
+
+```bash
+npm test
+```
 
 ## Variables de entorno
 

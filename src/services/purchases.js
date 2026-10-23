@@ -1,5 +1,12 @@
 const RANKS = require('../config/ranks');
 const { db, save } = require('./store');
+const {
+  getGrantExpiration,
+  getLatestExpiration,
+  grantRole,
+  reconcileExpiredRoles,
+  supersedeRole,
+} = require('./roleEntitlements');
 
 const DAY = 24 * 60 * 60 * 1000;
 const PLUS_DAYS = 30;
@@ -13,7 +20,6 @@ const BY_PRODUCT = {
 
 // Asegurarnos de que las estructuras existan en el store
 db.processed = db.processed || {};
-db.roles = db.roles || {};
 
 async function api(path, body) {
   const res = await fetch(`${process.env.BACKEND_URL}/api/${path}`, {
@@ -36,6 +42,7 @@ async function handlePurchase(client, p) {
 
   const best = keys.sort((a, b) => ORDER.indexOf(b) - ORDER.indexOf(a))[0];
   const rank = RANKS[best];
+  const boughtNetheriteInSameCart = keys.includes('netherite');
 
   const guild = await client.guilds.fetch(process.env.GUILD_ID);
   let member;
@@ -55,49 +62,38 @@ async function handlePurchase(client, p) {
   if (best === 'netheriteplus') {
     const netheriteRoleId = RANKS.netherite?.discordRoleId;
     const hasNetheriteInDiscord = netheriteRoleId && member.roles.cache.has(netheriteRoleId);
-    const boughtNetheriteInSameCart = keys.includes('netherite');
-
     if (!hasNetheriteInDiscord && !boughtNetheriteInSameCart) {
       db.processed[p.orderId] = true;
       save();
       return 'rechazado: requiere tener rol Netherite previo en Discord';
     }
-
-    // Si compró Netherite y Netherite+ juntos en el mismo carrito, nos aseguramos de darle también el rol base Netherite
-    if (boughtNetheriteInSameCart && netheriteRoleId && !hasNetheriteInDiscord) {
-      await member.roles.add(netheriteRoleId);
-    }
   }
 
-  // --- QUITAR RANGOS INFERIORES DE DISCORD ---
-  // Si sube de rango (ej: de Oro a Diamante), le sacamos el rol anterior.
-  // Excepción: si compra Netherite+, NO le sacamos el rol de Netherite base (así cuando vencen los 30 días sigue teniendo su rol Netherite).
-  const rolesToRemove = Object.entries(RANKS)
-    .filter(([key]) => {
-      if (key === best) return false;
-      if (best === 'netheriteplus' && key === 'netherite') return false;
-      return true;
-    })
-    .map(([, val]) => val.discordRoleId)
-    .filter((roleId) => roleId && member.roles.cache.has(roleId));
-
-  if (rolesToRemove.length > 0) {
-    await member.roles.remove(rolesToRemove);
-  }
-
-  // --- DAR EL NUEVO ROL EN DISCORD ---
-  await member.roles.add(rank.discordRoleId);
-
-  // --- VENCIMIENTO DE 30 DÍAS PARA NETHERITE+ ---
-  if (best === 'netheriteplus') {
-    const key = `${member.id}:${rank.discordRoleId}`;
-    const cur = db.roles[key];
-    const base = cur && cur.expiresAt > Date.now() ? cur.expiresAt : Date.now();
-    db.roles[key] = {
+  if (best === 'netheriteplus' && boughtNetheriteInSameCart) {
+    await grantRole(member, {
       userId: member.id,
-      roleId: rank.discordRoleId,
-      expiresAt: base + PLUS_DAYS * DAY,
-    };
+      roleId: RANKS.netherite.discordRoleId,
+      grantId: `purchase:${p.orderId}`,
+      source: 'purchase',
+    });
+  }
+
+  const grantId = `purchase:${p.orderId}`;
+  const existingExpiration = getGrantExpiration(member.id, rank.discordRoleId, grantId);
+  const expiresAt = best === 'netheriteplus'
+    ? existingExpiration ?? Math.max(Date.now(), getLatestExpiration(member.id, rank.discordRoleId, 'purchase')) + PLUS_DAYS * DAY
+    : null;
+  await grantRole(member, {
+    userId: member.id,
+    roleId: rank.discordRoleId,
+    grantId,
+    source: 'purchase',
+    expiresAt,
+  });
+
+  for (const [key, oldRank] of Object.entries(RANKS)) {
+    if (key === best || (best === 'netheriteplus' && key === 'netherite')) continue;
+    await supersedeRole(member, member.id, oldRank.discordRoleId);
   }
 
   db.processed[p.orderId] = true;
@@ -107,34 +103,17 @@ async function handlePurchase(client, p) {
 
 // Revisa cada 1 minuto si algún rol de Netherite+ cumplió los 30 días y lo quita de Discord
 async function checkExpiredRoles(client) {
-  const now = Date.now();
-  let changed = false;
-
-  for (const [key, data] of Object.entries(db.roles || {})) {
-    if (data.expiresAt <= now) {
-      try {
-        const guild = await client.guilds.fetch(process.env.GUILD_ID);
-        const member = await guild.members.fetch(data.userId).catch(() => null);
-        if (member && member.roles.cache.has(data.roleId)) {
-          await member.roles.remove(data.roleId);
-          console.log(`[Expiración] Rol Netherite+ removido a ${member.user.tag}`);
-        }
-      } catch (e) {
-        console.error(`[Expiración] Error al remover rol (${key}):`, e.message);
-      }
-      delete db.roles[key];
-      changed = true;
-    }
-  }
-
-  if (changed) save();
+  await reconcileExpiredRoles(client);
 }
 
 function startPurchaseConsumer(client) {
   const consumerId = process.env.CONSUMER_ID || 'unlp-craft-dsbot';
   let lastReconcile = 0;
+  let running = false;
 
   const tick = async () => {
+    if (running) return;
+    running = true;
     try {
       if (Date.now() - lastReconcile > 60 * 1000) {
         lastReconcile = Date.now();
@@ -159,6 +138,8 @@ function startPurchaseConsumer(client) {
       }
     } catch (e) {
       console.error('consumidor de compras:', e.message);
+    } finally {
+      running = false;
     }
   };
 

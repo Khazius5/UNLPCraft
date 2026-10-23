@@ -2,6 +2,23 @@
 
 Registro de cambios del bot. Esta primera entrada resume las diferencias entre el código actual y la versión que ya estaba versionada en GitHub al iniciar este registro. Las modificaciones descritas aquí son cambios locales hasta que se publiquen en el repositorio.
 
+## 23-10-2026 — Idempotencia y recuperación de boosters
+
+### Agregado
+
+- Registro de derechos de roles por origen (compra, booster y vencimiento), de modo que la expiración de una recompensa no quite el rol Diamante cuando todavía existe una compra válida.
+- Persistencia de la ventana de agrupación de boosts y recuperación de temporizadores después de reiniciar el bot.
+- Estado de entrega RCON guardado antes de ejecutar comandos. Un resultado ambiguo requiere verificación manual y no se reintenta automáticamente.
+- Pruebas automatizadas con `node:test` para el registro de roles, el asentamiento de boosts y la política de no reenvío automático.
+- Se eliminó el servicio de entrega de rangos que ya no tenía consumidores, para evitar mantener un segundo camino de asignación de roles fuera del registro de derechos.
+
+### Modificado
+
+- La limpieza de roles vencidos conserva su registro frente a errores temporales de Discord para poder reintentar.
+- Los rangos comprados crean derechos permanentes o temporales explícitos; las mejoras reemplazan derechos de compra anteriores sin borrar recompensas de booster vigentes.
+- Los reclamos de boost quedan asociados al mismo nick de Minecraft durante todos sus reintentos.
+- Se agregó el comando `npm test` para ejecutar las pruebas automatizadas.
+
 ## 23-10-2026 — Configuración externa de roles
 
 ### Modificado

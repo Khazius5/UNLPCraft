@@ -1,4 +1,5 @@
 const { startExpiryJob } = require('../services/boosts');
+const { resumeBoostTracking } = require('../services/boostTracking');
 const reclamarBoost = require('../commands/reclamarBoost');
 const { startPurchaseConsumer } = require('../services/purchases');
 module.exports = {
@@ -15,6 +16,6 @@ module.exports = {
     }
     if (process.env.BACKEND_URL) startPurchaseConsumer(client);
     startExpiryJob(client);
-    
+    resumeBoostTracking(client);
   },
 };
