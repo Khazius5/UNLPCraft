@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { loadRoleMap } = require('../src/services/luckpermsRoleMap');
+const { getHighestRankGroup, loadRoleMap } = require('../src/services/luckpermsRoleMap');
 const ranks = require('../src/config/ranks');
 
 test('LuckPerms role map contains the provided groups and does not map Discord booster role', () => {
@@ -22,6 +22,12 @@ test('boost rank roles use the same IDs from the JSON role map', () => {
   assert.equal(ranks.diamante.discordRoleId, map.diamante);
   assert.equal(ranks.netherite.discordRoleId, map.netherite);
   assert.equal(ranks.netheriteplus.discordRoleId, map['netherite+']);
+});
+
+test('highest-rank selection follows VIP rank priority and ignores non-rank groups', () => {
+  assert.equal(getHighestRankGroup(['oro', 'diamante']), 'diamante');
+  assert.equal(getHighestRankGroup(['oro', 'netherite+', 'netherite']), 'netherite+');
+  assert.equal(getHighestRankGroup(['fac_informatica']), null);
 });
 
 test('role map loader rejects invalid or missing Discord role IDs', (t) => {

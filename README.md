@@ -19,8 +19,10 @@ Bot de Discord para gestionar recompensas de boosters. No procesa pagos, no cons
 
 - `/link` genera un código privado de un solo uso, válido durante cinco minutos. Se puede volver a usar para actualizar los roles tras cambios en LuckPerms.
 - El jugador canjea el código en Minecraft con `/discord link <codigo>`; el plugin obtiene su UUID autenticado y grupos heredados de LuckPerms.
+- `/discord sync` vuelve a consultar los grupos heredados actuales de LuckPerms y actualiza los roles Discord del UUID vinculado, sin necesitar otro código.
 - `POST /api/minecraft/link` valida el secreto del plugin, canjea el código y guarda el vínculo en `data/account-links.json`.
 - El bot asigna o retira únicamente los roles gestionados por este sincronizador, según el mapeo explícito del archivo JSON de configuración.
+- Si LuckPerms envía varios rangos VIP heredados, solo se asigna el de mayor prioridad: Netherite+ > Netherite > Diamante > Oro. Los roles de facultad se sincronizan aparte.
 - El mapeo editable de grupos y roles está en [`src/config/luckperms-role-map.json`](./src/config/luckperms-role-map.json); los grupos sin rol configurado se ignoran.
 - El rol de booster no se incluye en el mapeo: Discord lo asigna automáticamente cuando una persona boostea el servidor.
 - El proyecto del plugin Purpur está en [`minecraft-plugin/`](./minecraft-plugin/).
@@ -112,4 +114,4 @@ Los IDs de Discord son identificadores de configuración, no credenciales secret
 - Las recompensas de compras y el OAuth de la tienda no forman parte de este bot.
 - El servidor HTTP permanece activo; la ruta de prueba `/dev/fake-boost` solo se registra cuando existe `DEV_TOOLS_KEY` y `NODE_ENV` no es `production`.
 - El comando `/reclamar-boost` procesa las recompensas que genera el sistema de boosts.
-- `/link` y `/api/minecraft/link` vinculan cuentas y sincronizan roles mapeados desde LuckPerms.
+- `/link` y `/api/minecraft/link` vinculan cuentas; `/discord sync` vuelve a sincronizar los roles mapeados desde LuckPerms.

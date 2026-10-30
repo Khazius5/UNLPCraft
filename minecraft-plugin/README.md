@@ -4,11 +4,12 @@ Plugin Java mínimo para vincular un jugador de Minecraft con una cuenta de Disc
 
 ## Alcance actual
 
-- Registra `/discord link <codigo>` en el servidor.
+- Registra `/discord link <codigo>` y `/discord sync` en el servidor.
 - Solo acepta comandos de jugadores, no de consola.
 - Obtiene el UUID y nick de la sesión autenticada del jugador.
 - Consulta los grupos heredados de LuckPerms desde su API.
 - Envía el código, UUID, nick y grupos al endpoint HTTPS configurado, usando `X-Api-Key`.
+- `/discord sync` envía el UUID y los grupos actuales sin código; el bot solo sincroniza cuentas ya vinculadas.
 - No registra el código ni la clave en logs.
 
 ## Endpoint del bot
@@ -19,6 +20,7 @@ Solicitud `POST` a la URL configurada en `link-endpoint`:
 
 ```json
 {
+  "action": "link",
   "code": "CODIGO_DE_UN_SOLO_USO",
   "player": {
     "uuid": "UUID_AUTENTICADO_EN_MINECRAFT",
@@ -28,6 +30,8 @@ Solicitud `POST` a la URL configurada en `link-endpoint`:
 }
 ```
 
+Para una sincronización posterior, el plugin envía el mismo formato pero con `"action": "sync"` y sin `code`. Si el UUID aún no está vinculado, el endpoint devuelve `404` y hay que completar primero `/link` en Discord y `/discord link <codigo>` en Minecraft.
+
 Encabezados:
 
 ```text
@@ -36,6 +40,8 @@ X-Api-Key: <secreto compartido>
 ```
 
 El endpoint valida la clave y el código, comprueba su vencimiento y uso único, y vincula el UUID con el usuario de Discord que generó el código. Los grupos sin rol configurado en el archivo de mapeo no otorgan roles. Un error al sincronizar roles devuelve un estado no exitoso; el plugin puede reintentar la solicitud sin crear un segundo vínculo.
+
+Después de cambiar grupos en LuckPerms, el jugador ejecuta `/discord sync` en Minecraft. El plugin envía los grupos actuales sin código y el bot actualiza los roles del UUID ya vinculado. Si el jugador aún no vinculó su cuenta, debe completar `/link` en Discord y `/discord link <codigo>` primero.
 
 ## Compilar
 

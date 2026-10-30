@@ -3,8 +3,8 @@ version: '${version}'
 main: pro.unlpcraft.link.UNLPCraftLinkPlugin
 api-version: '26.2'
 depend: [LuckPerms]
-description: Vincula jugadores de Minecraft con Discord mediante un código temporal.
+description: Vincula jugadores de Minecraft con Discord y sincroniza sus roles.
 commands:
   discord:
-    description: Vincula tu cuenta de Minecraft con Discord.
-    usage: /discord link <codigo>
+    description: Vincula tu cuenta de Minecraft o sincroniza tus roles de Discord.
+    usage: /discord link <codigo> | /discord sync

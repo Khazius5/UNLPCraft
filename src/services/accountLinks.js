@@ -82,6 +82,19 @@ class AccountLinkStore {
     return { uuid, ...link };
   }
 
+  updateLinkedPlayer({ uuid, playerName, groups }, now = Date.now()) {
+    const link = this.data.linksByUuid[uuid];
+    if (!link) {
+      throw new AccountLinkError('NOT_LINKED', 'El jugador todavía no está vinculado.');
+    }
+
+    link.playerName = playerName;
+    link.groups = groups;
+    link.updatedAt = now;
+    this.save();
+    return { uuid, ...link };
+  }
+
   updateManagedRoles(uuid, roleIds) {
     const link = this.data.linksByUuid[uuid];
     if (!link) throw new AccountLinkError('NOT_LINKED', 'El jugador no está vinculado.');

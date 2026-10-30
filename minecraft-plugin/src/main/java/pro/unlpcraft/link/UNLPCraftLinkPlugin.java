@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.logging.Level;
+import java.util.Locale;
+import java.util.stream.Stream;
 
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
@@ -19,11 +21,12 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public final class UNLPCraftLinkPlugin extends JavaPlugin implements CommandExecutor {
-    private static final String LINK_USAGE = "Uso: /discord link <codigo>";
+public final class UNLPCraftLinkPlugin extends JavaPlugin implements CommandExecutor, TabCompleter {
+    private static final String LINK_USAGE = "Uso: /discord link <codigo> o /discord sync";
     private static final String LINK_CODE_PATTERN = "[A-Za-z0-9-]{6,128}";
 
     private HttpClient httpClient;
@@ -45,7 +48,25 @@ public final class UNLPCraftLinkPlugin extends JavaPlugin implements CommandExec
             return;
         }
         discordCommand.setExecutor(this);
-        getLogger().info("Plugin habilitado. Comando disponible: /discord link <codigo>");
+        discordCommand.setTabCompleter(this);
+        getLogger().info("Plugin habilitado. Comandos disponibles: /discord link <codigo> y /discord sync");
+    }
+
+    @Override
+    public List<String> onTabComplete(
+            CommandSender sender,
+            Command command,
+            String alias,
+            String[] args
+    ) {
+        if (args.length != 1) {
+            return List.of();
+        }
+
+        String input = args[0].toLowerCase(Locale.ROOT);
+        return Stream.of("link", "sync")
+                .filter(subcommand -> subcommand.startsWith(input))
+                .toList();
     }
 
     @Override
@@ -60,13 +81,15 @@ public final class UNLPCraftLinkPlugin extends JavaPlugin implements CommandExec
             return true;
         }
 
-        if (args.length != 2 || !args[0].equalsIgnoreCase("link")) {
+        boolean isLink = args.length == 2 && args[0].equalsIgnoreCase("link");
+        boolean isSync = args.length == 1 && args[0].equalsIgnoreCase("sync");
+        if (!isLink && !isSync) {
             player.sendMessage(LINK_USAGE);
             return true;
         }
 
-        String code = args[1];
-        if (!code.matches(LINK_CODE_PATTERN)) {
+        String code = isLink ? args[1] : null;
+        if (isLink && !code.matches(LINK_CODE_PATTERN)) {
             player.sendMessage("El código no tiene un formato válido. Pedí uno nuevo desde Discord.");
             return true;
         }
@@ -80,10 +103,13 @@ public final class UNLPCraftLinkPlugin extends JavaPlugin implements CommandExec
 
         UUID playerId = player.getUniqueId();
         String playerName = player.getName();
-        player.sendMessage("Verificando tu cuenta y tus grupos de LuckPerms...");
+        player.sendMessage(isSync
+                ? "Sincronizando tus grupos de LuckPerms con Discord..."
+                : "Verificando tu cuenta y tus grupos de LuckPerms...");
 
         luckPerms.getUserManager().loadUser(playerId)
-                .thenCompose(user -> sendLinkRequest(endpoint, apiKey, code, playerId, playerName, user))
+                .thenCompose(user -> sendAccountRequest(endpoint, apiKey, isSync ? "sync" : "link", code,
+                        playerId, playerName, user))
                 .whenComplete((response, error) -> Bukkit.getScheduler().runTask(this, () -> {
                     if (!player.isOnline()) {
                         return;
@@ -98,9 +124,14 @@ public final class UNLPCraftLinkPlugin extends JavaPlugin implements CommandExec
                     }
 
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                        player.sendMessage("¡Cuenta vinculada! Ya podés cerrar este mensaje.");
+                        player.sendMessage(isSync
+                                ? "¡Tus roles de Discord fueron sincronizados con tus grupos actuales!"
+                                : "¡Cuenta vinculada! Ya podés cerrar este mensaje.");
+                    } else if (isSync && response.statusCode() == 404) {
+                        player.sendMessage("Tu cuenta todavía no está vinculada. Usá /link en Discord y luego /discord link <codigo>.");
                     } else if (response.statusCode() == 400 || response.statusCode() == 401
-                            || response.statusCode() == 403 || response.statusCode() == 409) {
+                            || response.statusCode() == 403 || response.statusCode() == 404
+                            || response.statusCode() == 409) {
                         player.sendMessage("No se pudo vincular. Revisá que el código sea válido y no haya vencido.");
                     } else {
                         getLogger().warning("El endpoint de vinculación respondió HTTP " + response.statusCode() + ".");
@@ -110,9 +141,10 @@ public final class UNLPCraftLinkPlugin extends JavaPlugin implements CommandExec
         return true;
     }
 
-    private java.util.concurrent.CompletionStage<HttpResponse<String>> sendLinkRequest(
+    private java.util.concurrent.CompletionStage<HttpResponse<String>> sendAccountRequest(
             URI endpoint,
             String apiKey,
+            String action,
             String code,
             UUID playerId,
             String playerName,
@@ -124,30 +156,25 @@ public final class UNLPCraftLinkPlugin extends JavaPlugin implements CommandExec
                 .sorted()
                 .toList();
 
-        String body = """
-                {
-                  "code": "%s",
-                  "player": {
-                    "uuid": "%s",
-                    "name": "%s"
-                  },
-                  "groups": [%s]
-                }
-                """.formatted(
-                escapeJson(code),
-                playerId,
-                escapeJson(playerName),
-                groups.stream().map(group -> "\"" + escapeJson(group) + "\"")
-                        .reduce((left, right) -> left + ", " + right)
-                        .orElse("")
-        );
+        StringBuilder body = new StringBuilder("{");
+        body.append("\"action\":\"").append(action).append("\",");
+        if (code != null) {
+            body.append("\"code\":\"").append(escapeJson(code)).append("\",");
+        }
+        body.append("\"player\":{\"uuid\":\"").append(playerId)
+                .append("\",\"name\":\"").append(escapeJson(playerName)).append("\"},")
+                .append("\"groups\":[")
+                .append(groups.stream().map(group -> "\"" + escapeJson(group) + "\"")
+                        .reduce((left, right) -> left + "," + right)
+                        .orElse(""))
+                .append("]}");
 
         HttpRequest request = HttpRequest.newBuilder(endpoint)
                 .timeout(Duration.ofSeconds(getTimeoutSeconds()))
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json; charset=utf-8")
                 .header("X-Api-Key", apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .build();
 
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());

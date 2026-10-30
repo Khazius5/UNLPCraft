@@ -1,7 +1,11 @@
 const crypto = require('crypto');
 const { AccountLinkError } = require('../services/accountLinks');
 const accountLinks = require('../services/accountLinksStore');
-const { loadRoleMap } = require('../services/luckpermsRoleMap');
+const {
+  getHighestRankGroup,
+  loadRoleMap,
+  RANK_GROUPS_BY_PRIORITY,
+} = require('../services/luckpermsRoleMap');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const GROUP_PATTERN = /^[A-Za-z0-9_.+-]{1,64}$/;
@@ -16,10 +20,11 @@ module.exports = (app, client, links = accountLinks, getRoleMap = loadRoleMap) =
       return res.status(401).json({ error: 'Invalid API key.' });
     }
 
-    const { code, player, groups } = req.body || {};
+    const { action = 'link', code, player, groups } = req.body || {};
     if (
-      typeof code !== 'string'
-      || !/^[a-f0-9]{48}$/i.test(code)
+      !['link', 'sync'].includes(action)
+      || (action === 'link' && (typeof code !== 'string' || !/^[a-f0-9]{48}$/i.test(code)))
+      || (action === 'sync' && code !== undefined)
       || !player
       || typeof player !== 'object'
       || typeof player.uuid !== 'string'
@@ -46,15 +51,20 @@ module.exports = (app, client, links = accountLinks, getRoleMap = loadRoleMap) =
 
     let link;
     try {
-      link = links.linkPlayer({
-        code,
+      const request = {
         uuid: player.uuid.toLowerCase(),
         playerName: player.name,
         groups: [...new Set(groups)],
-      });
+      };
+      link = action === 'link'
+        ? links.linkPlayer({ ...request, code })
+        : links.updateLinkedPlayer(request);
     } catch (error) {
       if (error instanceof AccountLinkError && error.code === 'INVALID_CODE') {
         return res.status(400).json({ error: 'The link code is invalid or expired.' });
+      }
+      if (error instanceof AccountLinkError && error.code === 'NOT_LINKED') {
+        return res.status(404).json({ error: 'This Minecraft account is not linked yet.' });
       }
       if (error instanceof AccountLinkError && error.code === 'CONFLICT') {
         return res.status(409).json({ error: error.message });
@@ -66,8 +76,13 @@ module.exports = (app, client, links = accountLinks, getRoleMap = loadRoleMap) =
     try {
       const guild = await client.guilds.fetch(process.env.GUILD_ID);
       const member = await guild.members.fetch(link.discordUserId);
+      const highestRankGroup = getHighestRankGroup(link.groups);
+      const groupsToSync = link.groups.filter(
+        (group) => !RANK_GROUPS_BY_PRIORITY.includes(group)
+          || group === highestRankGroup,
+      );
       const targetRoleIds = [...new Set(
-        link.groups
+        groupsToSync
           .filter((group) => Object.hasOwn(roleMap, group))
           .map((group) => roleMap[group]),
       )];
@@ -89,6 +104,7 @@ module.exports = (app, client, links = accountLinks, getRoleMap = loadRoleMap) =
       return res.status(200).json({
         ok: true,
         linked: true,
+        synchronized: true,
         synchronizedRoles: targetRoleIds.length,
       });
     } catch (error) {

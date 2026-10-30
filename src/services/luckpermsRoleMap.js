@@ -3,6 +3,7 @@ const path = require('path');
 
 const DEFAULT_FILE = path.join(__dirname, '../config/luckperms-role-map.json');
 const GROUP_PATTERN = /^[A-Za-z0-9_.+-]{1,64}$/;
+const RANK_GROUPS_BY_PRIORITY = ['netherite+', 'netherite', 'diamante', 'oro'];
 
 function loadRoleMap(file = DEFAULT_FILE) {
   const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -21,4 +22,8 @@ function loadRoleMap(file = DEFAULT_FILE) {
   return parsed;
 }
 
-module.exports = { loadRoleMap };
+function getHighestRankGroup(groups) {
+  return RANK_GROUPS_BY_PRIORITY.find((group) => groups.includes(group)) || null;
+}
+
+module.exports = { getHighestRankGroup, loadRoleMap, RANK_GROUPS_BY_PRIORITY };

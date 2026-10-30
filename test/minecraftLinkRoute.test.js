@@ -30,8 +30,12 @@ function setupRoute(t, existingRoleIds = []) {
     client,
     links,
     () => ({
+      oro: '11111111111111111',
+      diamante: '22222222222222222',
+      netherite: '33333333333333333',
       vip: '98765432109876543',
       'netherite+': '87654321098765432',
+      fac_informatica: '44444444444444444',
     }),
   );
   t.after(() => {
@@ -124,4 +128,59 @@ test('role synchronization does not take ownership of an already assigned role',
   });
   assert.equal(refreshed.statusCode, 200);
   assert.deepEqual([...roles], [roleId]);
+});
+
+test('sync action updates current groups and roles for an already linked UUID', async (t) => {
+  const { invoke, links, roles } = setupRoute(t);
+  const uuid = '123e4567-e89b-12d3-a456-426614174000';
+  const { code } = links.createCode('12345678901234567');
+
+  const linked = await invoke({
+    action: 'link',
+    code,
+    player: { uuid, name: 'PlayerOne' },
+    groups: ['vip'],
+  });
+  assert.equal(linked.statusCode, 200);
+  assert.deepEqual([...roles], ['98765432109876543']);
+
+  const synced = await invoke({
+    action: 'sync',
+    player: { uuid, name: 'PlayerOne' },
+    groups: ['netherite+'],
+  });
+
+  assert.equal(synced.statusCode, 200);
+  assert.deepEqual([...roles], ['87654321098765432']);
+  assert.deepEqual(links.data.linksByUuid[uuid].groups, ['netherite+']);
+});
+
+test('sync action rejects unlinked UUIDs without creating a link', async (t) => {
+  const { invoke, links } = setupRoute(t);
+  const response = await invoke({
+    action: 'sync',
+    player: {
+      uuid: '123e4567-e89b-12d3-a456-426614174000',
+      name: 'PlayerOne',
+    },
+    groups: ['vip'],
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(Object.keys(links.data.linksByUuid).length, 0);
+});
+
+test('role synchronization assigns only the highest inherited VIP rank and keeps faculty roles', async (t) => {
+  const { invoke, links, roles } = setupRoute(t);
+  const uuid = '123e4567-e89b-12d3-a456-426614174000';
+  const { code } = links.createCode('12345678901234567');
+
+  const response = await invoke({
+    code,
+    player: { uuid, name: 'PlayerOne' },
+    groups: ['oro', 'diamante', 'netherite+', 'fac_informatica'],
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual([...roles], ['87654321098765432', '44444444444444444']);
 });
