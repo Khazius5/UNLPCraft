@@ -58,7 +58,7 @@ test('link code expires and the same completed request is safe to retry', (t) =>
   assert.deepEqual(retry.groups, ['vip']);
 });
 
-test('a Discord account can refresh its existing link but cannot link a second Minecraft UUID', (t) => {
+test('a Discord account cannot request another code or link a second Minecraft UUID', (t) => {
   const store = createStore(t);
   const firstCode = store.createCode('12345678901234567');
   store.linkPlayer({
@@ -67,21 +67,14 @@ test('a Discord account can refresh its existing link but cannot link a second M
     playerName: 'PlayerOne',
     groups: [],
   });
-  const refreshCode = store.createCode('12345678901234567');
-  store.linkPlayer({
-    code: refreshCode.code,
-    uuid: '123e4567-e89b-12d3-a456-426614174000',
-    playerName: 'PlayerOne',
-    groups: ['vip'],
-  });
-  const secondCode = store.createCode('12345678901234567');
+  assert.throws(() => store.createCode('12345678901234567'), { code: 'ALREADY_LINKED' });
 
   assert.throws(() => store.linkPlayer({
-    code: secondCode.code,
+    code: firstCode.code,
     uuid: '223e4567-e89b-12d3-a456-426614174000',
     playerName: 'PlayerTwo',
     groups: [],
-  }), { code: 'CONFLICT' });
+  }), { code: 'INVALID_CODE' });
 });
 
 test('a Minecraft UUID cannot be linked to a different Discord account', (t) => {

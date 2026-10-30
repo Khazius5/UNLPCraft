@@ -17,9 +17,9 @@ Bot de Discord para gestionar recompensas de boosters. No procesa pagos, no cons
 
 ### Vínculo de cuentas Minecraft↔Discord
 
-- `/link` genera un código privado de un solo uso, válido durante cinco minutos. Se puede volver a usar para actualizar los roles tras cambios en LuckPerms.
-- El jugador canjea el código en Minecraft con `/discord link <codigo>`; el plugin obtiene su UUID autenticado y grupos heredados de LuckPerms.
-- `/discord sync` vuelve a consultar los grupos heredados actuales de LuckPerms y actualiza los roles Discord del UUID vinculado, sin necesitar otro código.
+- `/link` genera un código privado de un solo uso, válido durante cinco minutos. Una cuenta ya vinculada no puede iniciar otro vínculo; los cambios de roles se actualizan con `/unlpcraftlink:discord sync`.
+- El jugador canjea el código en Minecraft con `/unlpcraftlink:discord link <codigo>`; el plugin obtiene su UUID autenticado y grupos heredados de LuckPerms.
+- `/unlpcraftlink:discord sync` vuelve a consultar los grupos heredados actuales de LuckPerms y actualiza los roles Discord del UUID vinculado, sin necesitar otro código.
 - `POST /api/minecraft/link` valida el secreto del plugin, canjea el código y guarda el vínculo en `data/account-links.json`.
 - El bot asigna o retira únicamente los roles gestionados por este sincronizador, según el mapeo explícito del archivo JSON de configuración.
 - Si LuckPerms envía varios rangos VIP heredados, solo se asigna el de mayor prioridad: Netherite+ > Netherite > Diamante > Oro. Los roles de facultad se sincronizan aparte.

@@ -120,9 +120,8 @@ test('role synchronization does not take ownership of an already assigned role',
   assert.equal(linked.statusCode, 200);
   assert.deepEqual(links.data.linksByUuid[uuid].managedRoleIds, []);
 
-  const refreshCode = links.createCode('12345678901234567').code;
   const refreshed = await invoke({
-    code: refreshCode,
+    action: 'sync',
     player: { uuid, name: 'PlayerOne' },
     groups: [],
   });

@@ -28,6 +28,12 @@ class AccountLinkStore {
   createCode(discordUserId, now = Date.now()) {
     this.cleanupExpiredCodes(now);
 
+    const existingLink = Object.values(this.data.linksByUuid)
+      .find((link) => link.discordUserId === discordUserId);
+    if (existingLink) {
+      throw new AccountLinkError('ALREADY_LINKED', 'Esta cuenta de Discord ya está vinculada.');
+    }
+
     for (const [hash, pending] of Object.entries(this.data.pendingCodes)) {
       if (pending.discordUserId === discordUserId) delete this.data.pendingCodes[hash];
     }
@@ -64,6 +70,9 @@ class AccountLinkStore {
       }
       if (existing && existing.discordUserId !== discordUserId) {
         throw new AccountLinkError('CONFLICT', 'Este jugador ya está vinculado a otra cuenta de Discord.');
+      }
+      if (existing) {
+        throw new AccountLinkError('ALREADY_LINKED', 'Este jugador ya está vinculado.');
       }
       delete this.data.pendingCodes[codeHash];
     }

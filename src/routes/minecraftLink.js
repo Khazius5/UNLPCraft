@@ -69,6 +69,9 @@ module.exports = (app, client, links = accountLinks, getRoleMap = loadRoleMap) =
       if (error instanceof AccountLinkError && error.code === 'CONFLICT') {
         return res.status(409).json({ error: error.message });
       }
+      if (error instanceof AccountLinkError && error.code === 'ALREADY_LINKED') {
+        return res.status(409).json({ error: 'This account is already linked. Use the sync action to update roles.' });
+      }
       console.error('Could not persist Minecraft account link:', error.message);
       return res.status(500).json({ error: 'Could not save the account link.' });
     }
