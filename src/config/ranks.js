@@ -1,29 +1,34 @@
-function requiredEnv(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`Falta configurar ${name} en el archivo .env`);
-  return value;
+const { loadRoleMap } = require('../services/luckpermsRoleMap');
+const roleMap = loadRoleMap();
+
+function requiredRole(group) {
+  const roleId = roleMap[group];
+  if (!roleId) {
+    throw new Error(`Falta configurar un ID de rol válido para "${group}" en src/config/luckperms-role-map.json.`);
+  }
+  return roleId;
 }
 
 module.exports = {
   oro: {
     title: 'Rango Oro',
     price: 5000,
-    discordRoleId: requiredEnv('ROLE_ID_ORO'),
+    discordRoleId: requiredRole('oro'),
   },
   diamante: {
     title: 'Rango Diamante',
     price: 10000,
-    discordRoleId: requiredEnv('ROLE_ID_DIAMANTE'),
+    discordRoleId: requiredRole('diamante'),
   },
   netherite: {
     title: 'Rango Netherite',
     price: 20000,
-    discordRoleId: requiredEnv('ROLE_ID_NETHERITE'),
+    discordRoleId: requiredRole('netherite'),
   },
   netheriteplus: {
     title: 'Rango Netherite+',
     price: 125000,
-    discordRoleId: requiredEnv('ROLE_ID_NETHERITE_PLUS'),
+    discordRoleId: requiredRole('netherite+'),
     requiresRank: 'netherite', // Requisito previo
     durationDays: 30,          // Duración temporal
   },

@@ -2,6 +2,20 @@
 
 Registro de cambios del bot. Esta primera entrada resume las diferencias entre el código actual y la versión que ya estaba versionada en GitHub al iniciar este registro. Las modificaciones descritas aquí son cambios locales hasta que se publiquen en el repositorio.
 
+## 29-10-2026 — Separación del bot de compras y OAuth de la tienda
+
+### Eliminado
+
+- El consumidor de compras del backend y la reconciliación de pagos.
+- Las rutas OAuth utilizadas por el login de la tienda.
+- La configuración obsoleta asociada a `CLIENT_ID`.
+
+### Modificado
+
+- El bot queda enfocado en las recompensas de boosters; conserva RCON para entregarlas en Minecraft.
+- Se mantiene el servidor HTTP para futuras integraciones y herramientas de prueba locales.
+- Se actualizó el README para reflejar las funciones y variables de entorno vigentes.
+
 ## 23-10-2026 — Idempotencia y recuperación de boosters
 
 ### Agregado

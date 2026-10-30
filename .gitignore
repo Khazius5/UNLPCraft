@@ -1,3 +1,5 @@
 .env
 node_modules/
 data/
+minecraft-plugin/.gradle/
+minecraft-plugin/build/

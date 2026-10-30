@@ -10,7 +10,13 @@ module.exports = {
         .setRequired(true).setMinLength(3).setMaxLength(16)),
   async execute(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const res = await claimBoost(interaction.member, interaction.options.getString('nick', true));
+    if (!interaction.inGuild()) {
+      await interaction.editReply('Este comando solo se puede usar en el servidor.');
+      return;
+    }
+
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const res = await claimBoost(member, interaction.options.getString('nick', true));
     await interaction.editReply(res.msg);
   },
 };

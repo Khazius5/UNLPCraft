@@ -1,0 +1,3839 @@
+Project Path: unlp-craft-dsbot
+
+Source Tree:
+
+```txt
+unlp-craft-dsbot
+├── PatchNotes.MD
+├── README.md
+├── config
+├── minecraft-plugin
+│   ├── README.md
+│   ├── build.gradle
+│   ├── settings.gradle
+│   └── src
+│       └── main
+│           ├── java
+│           │   └── pro
+│           │       └── unlpcraft
+│           │           └── link
+│           │               └── UNLPCraftLinkPlugin.java
+│           └── resources
+│               ├── config.yml
+│               └── plugin.yml
+├── package-lock.json
+├── package.json
+├── src
+│   ├── commands
+│   │   ├── link.js
+│   │   └── reclamarBoost.js
+│   ├── config
+│   │   ├── boosts.js
+│   │   ├── luckperms-role-map.json
+│   │   └── ranks.js
+│   ├── events
+│   │   ├── interactionCreate.js
+│   │   ├── messageCreate.js
+│   │   └── ready.js
+│   ├── handlers
+│   │   └── loadEvents.js
+│   ├── index.js
+│   ├── routes
+│   │   ├── dev.js
+│   │   └── minecraftLink.js
+│   └── services
+│       ├── accountLinks.js
+│       ├── accountLinksStore.js
+│       ├── boostQueue.js
+│       ├── boostTracking.js
+│       ├── boosts.js
+│       ├── luckpermsRoleMap.js
+│       ├── minecraft.js
+│       ├── onceOnlyDelivery.js
+│       ├── roleEntitlements.js
+│       ├── roleLedger.js
+│       └── store.js
+├── test
+│   ├── accountLinks.test.js
+│   ├── boostQueue.test.js
+│   ├── boostRewards.test.js
+│   ├── luckpermsRoleMap.test.js
+│   ├── minecraftLinkRoute.test.js
+│   ├── onceOnlyDelivery.test.js
+│   ├── reclamarBoost.test.js
+│   └── roleLedger.test.js
+└── test-boost.js
+
+```
+
+`PatchNotes.MD`:
+
+```MD
+# Patch Notes
+
+Registro de cambios del bot. Esta primera entrada resume las diferencias entre el código actual y la versión que ya estaba versionada en GitHub al iniciar este registro. Las modificaciones descritas aquí son cambios locales hasta que se publiquen en el repositorio.
+
+## 29-10-2026 — Separación del bot de compras y OAuth de la tienda
+
+### Eliminado
+
+- El consumidor de compras del backend y la reconciliación de pagos.
+- Las rutas OAuth utilizadas por el login de la tienda.
+- La configuración obsoleta asociada a `CLIENT_ID`.
+
+### Modificado
+
+- El bot queda enfocado en las recompensas de boosters; conserva RCON para entregarlas en Minecraft.
+- Se mantiene el servidor HTTP para futuras integraciones y herramientas de prueba locales.
+- Se actualizó el README para reflejar las funciones y variables de entorno vigentes.
+
+## 23-10-2026 — Idempotencia y recuperación de boosters
+
+### Agregado
+
+- Registro de derechos de roles por origen (compra, booster y vencimiento), de modo que la expiración de una recompensa no quite el rol Diamante cuando todavía existe una compra válida.
+- Persistencia de la ventana de agrupación de boosts y recuperación de temporizadores después de reiniciar el bot.
+- Estado de entrega RCON guardado antes de ejecutar comandos. Un resultado ambiguo requiere verificación manual y no se reintenta automáticamente.
+- Pruebas automatizadas con `node:test` para el registro de roles, el asentamiento de boosts y la política de no reenvío automático.
+- Se eliminó el servicio de entrega de rangos que ya no tenía consumidores, para evitar mantener un segundo camino de asignación de roles fuera del registro de derechos.
+
+### Modificado
+
+- La limpieza de roles vencidos conserva su registro frente a errores temporales de Discord para poder reintentar.
+- Los rangos comprados crean derechos permanentes o temporales explícitos; las mejoras reemplazan derechos de compra anteriores sin borrar recompensas de booster vigentes.
+- Los reclamos de boost quedan asociados al mismo nick de Minecraft durante todos sus reintentos.
+- Se agregó el comando `npm test` para ejecutar las pruebas automatizadas.
+
+## 23-10-2026 — Configuración externa de roles
+
+### Modificado
+
+- `src/config/ranks.js`: los IDs de los roles de Discord ahora se leen desde `ROLE_ID_*` en `.env`; la aplicación informa explícitamente si falta alguna variable requerida.
+- `README.md`: se documentaron las variables para los roles y se aclaró que `.env` no debe publicarse.
+
+## 23-10-2026 — Funciones de compras y boosters
+
+### Agregado
+
+- Flujo de recompensas por boosts de Discord: detección de boosts, registro de recompensas pendientes y comando `/reclamar-boost`.
+- Entrega de recompensas de booster: dinero y rango temporal en Minecraft mediante RCON/LuckPerms, además del rol temporal de Discord.
+- Persistencia local del estado de recompensas, vencimientos y compras procesadas en `data/boosts.json`.
+- Consumidor de notificaciones de compra aprobadas del backend, con confirmación del resultado del procesamiento.
+- Asignación de roles de Discord para rangos comprados, con reemplazo de roles anteriores y vencimiento de Netherite+.
+- Configuración de rangos y recompensas en `src/config/ranks.js` y `src/config/boosts.js`.
+- Inicio de sesión OAuth de Discord para vincular una cuenta desde la tienda y servir archivos de `public/`.
+
+### Modificado
+
+- `src/index.js`: ahora inicia el servidor HTTP, sirve la tienda estática y registra las rutas de OAuth. Se habilitó el intent de mensajes requerido para detectar boosts.
+- `src/events/ready.js`: ahora registra `/reclamar-boost`, inicia el consumidor de compras cuando se configura el backend y activa la tarea de vencimientos.
+- `src/services/minecraft.js`: ahora serializa los comandos RCON, aplica timeout y reintenta ante fallos.
+- `README.md`: se reemplazó el contenido inicial por documentación de funciones, instalación, configuración y rutas.
+
+### Eliminado
+
+- `src/events/guildMemberUpdate.js`: se retiró la asignación automática del grupo `booster` de LuckPerms al iniciar o terminar un boost. El handler no tenía una cuenta de Minecraft vinculada y su nick estaba fijado a `null`; las recompensas se reclaman ahora mediante el flujo explícito de boosters.
+
+### Aclaración del flujo de pagos
+
+El backend procesa y confirma los pagos de Mercado Pago. El bot consume las notificaciones de compras aprobadas y asigna roles de Discord; las compras no otorgan rangos ni ejecutan comandos en Minecraft. La integración con Minecraft permanece únicamente en las recompensas reclamadas por boosters.
+```
+`README.md`:
+
+```md
+# UNLP Craft Discord Bot
+
+Bot de Discord para gestionar recompensas de boosters. No procesa pagos, no consulta compras del backend y no ofrece el login OAuth de la tienda.
+
+[Ver Patch Notes](./PatchNotes.MD)
+
+## Funciones
+
+### Recompensas por boosters
+
+- Detecta los mensajes de boost del servidor y agrupa los boosts de cada usuario durante una ventana de 20 segundos.
+- El booster reclama la recompensa con `/reclamar-boost`, indicando su nickname de Minecraft.
+- Mediante RCON, entrega dinero y un grupo temporal de LuckPerms; en Discord, asigna el rol Diamante durante 30 días.
+- Guarda recompensas pendientes, boosts en agrupación, derechos de roles y estados de entrega en `data/boosts.json`.
+- Si una conexión RCON falla de forma ambigua, la operación queda en revisión manual y no se reenvía automáticamente para evitar duplicar recompensas.
+- Reintenta retirar roles vencidos si Discord falla temporalmente.
+
+### Vínculo de cuentas Minecraft↔Discord
+
+- `/link` genera un código privado de un solo uso, válido durante cinco minutos. Se puede volver a usar para actualizar los roles tras cambios en LuckPerms.
+- El jugador canjea el código en Minecraft con `/discord link <codigo>`; el plugin obtiene su UUID autenticado y grupos heredados de LuckPerms.
+- `POST /api/minecraft/link` valida el secreto del plugin, canjea el código y guarda el vínculo en `data/account-links.json`.
+- El bot asigna o retira únicamente los roles gestionados por este sincronizador, según el mapeo explícito del archivo JSON de configuración.
+- El mapeo editable de grupos y roles está en [`src/config/luckperms-role-map.json`](./src/config/luckperms-role-map.json); los grupos sin rol configurado se ignoran.
+- El rol de booster no se incluye en el mapeo: Discord lo asigna automáticamente cuando una persona boostea el servidor.
+- El proyecto del plugin Purpur está en [`minecraft-plugin/`](./minecraft-plugin/).
+
+El hosting debe conservar `data/` entre reinicios y ejecutar una sola instancia del bot para mantener el estado de vínculos y códigos.
+
+## Requisitos
+
+- Node.js 18 o superior.
+- Una aplicación y un bot de Discord agregados al servidor.
+- RCON habilitado en el servidor de Minecraft.
+- LuckPerms instalado en Minecraft para asignar el grupo temporal de la recompensa de booster.
+
+## Instalación y ejecución
+
+1. Instalá las dependencias:
+
+   ```bash
+   npm install
+   ```
+
+2. Configurá las variables de entorno indicadas abajo, usando `.env` localmente o el gestor de secretos del hosting.
+3. Iniciá para producción:
+
+   ```bash
+   npm start
+   ```
+
+   Para desarrollo con reinicio automático:
+
+   ```bash
+   npm run dev
+   ```
+
+El servidor HTTP escucha en `0.0.0.0` en el puerto `3000` por defecto. En un hosting con puertos asignados, configurá `PORT` con el puerto asignado al servicio del bot.
+
+Para ejecutar las pruebas automatizadas:
+
+```bash
+npm test
+```
+
+## Variables de entorno
+
+### Discord
+
+| Variable | Descripción |
+| --- | --- |
+| `DISCORD_TOKEN` | Token del bot. |
+| `GUILD_ID` | ID del servidor donde opera el bot y registra los comandos slash. |
+
+### Minecraft / RCON
+
+| Variable | Descripción |
+| --- | --- |
+| `RCON_HOST` | Host del servidor Minecraft. |
+| `RCON_PORT` | Puerto RCON. |
+| `RCON_PASSWORD` | Contraseña RCON. |
+
+### Vínculo Minecraft↔Discord
+
+| Variable | Descripción |
+| --- | --- |
+| `MINECRAFT_LINK_API_KEY` | Secreto compartido con el plugin; el bot lo valida en `X-Api-Key`. Debe configurarse también en `plugins/UNLPCraftLink/config.yml`. |
+
+Generá `MINECRAFT_LINK_API_KEY` como un secreto aleatorio independiente (por ejemplo, con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`), y cargá el mismo valor en el bot y el plugin. Configurá el endpoint del plugin como `https://<dominio-publico-del-bot>/api/minecraft/link`. Para cambiar los roles sincronizados, editá `src/config/luckperms-role-map.json` y reiniciá el bot.
+
+### Opcionales
+
+| Variable | Descripción |
+| --- | --- |
+| `PORT` | Puerto HTTP. Por defecto `3000`. |
+| `NODE_ENV` | Configurá `production` en el hosting para desactivar las herramientas de prueba. |
+| `DEV_TOOLS_KEY` | Clave opcional para la ruta local de simulación de boosts. No configurarla en producción. |
+
+## Configuración de Discord
+
+- Habilitá los intents de servidor y miembros (`Guilds`, `GuildMembers`) y mensajes de servidor (`GuildMessages`) en el Developer Portal.
+- Dale al bot permiso para ver el servidor y administrar roles.
+- Ubicá el rol del bot por encima de los roles que deba asignar o quitar.
+- Configurá los IDs de roles de rangos y facultades en `src/config/luckperms-role-map.json`.
+- Mantené el bot en el servidor indicado por `GUILD_ID`.
+- Para el vínculo Minecraft, editá `src/config/luckperms-role-map.json`; el bot nunca asigna roles que no estén mapeados.
+
+Los IDs de Discord son identificadores de configuración, no credenciales secretas. No publiques el token ni las contraseñas de RCON.
+
+## Estado
+
+- Las recompensas de compras y el OAuth de la tienda no forman parte de este bot.
+- El servidor HTTP permanece activo; la ruta de prueba `/dev/fake-boost` solo se registra cuando existe `DEV_TOOLS_KEY` y `NODE_ENV` no es `production`.
+- El comando `/reclamar-boost` procesa las recompensas que genera el sistema de boosts.
+- `/link` y `/api/minecraft/link` vinculan cuentas y sincronizan roles mapeados desde LuckPerms.
+
+```
+`minecraft-plugin\README.md`:
+
+```md
+# UNLP Craft Link (plugin Purpur)
+
+Plugin Java mínimo para vincular un jugador de Minecraft con una cuenta de Discord usando LuckPerms. Está configurado para la instalación reportada: Purpur `26.2.build.2633-stable`, Java 25 y LuckPerms API 5.5.
+
+## Alcance actual
+
+- Registra `/discord link <codigo>` en el servidor.
+- Solo acepta comandos de jugadores, no de consola.
+- Obtiene el UUID y nick de la sesión autenticada del jugador.
+- Consulta los grupos heredados de LuckPerms desde su API.
+- Envía el código, UUID, nick y grupos al endpoint HTTPS configurado, usando `X-Api-Key`.
+- No registra el código ni la clave en logs.
+
+## Endpoint del bot
+
+El bot recibe la solicitud en `POST /api/minecraft/link`. Antes de desplegar ambos componentes, configurá `MINECRAFT_LINK_API_KEY` en el entorno del bot y el mismo valor en `api-key` en el plugin. Configurá los grupos y roles permitidos en `src/config/luckperms-role-map.json` del bot.
+
+Solicitud `POST` a la URL configurada en `link-endpoint`:
+
+```json
+{
+  "code": "CODIGO_DE_UN_SOLO_USO",
+  "player": {
+    "uuid": "UUID_AUTENTICADO_EN_MINECRAFT",
+    "name": "NickDelJugador"
+  },
+  "groups": ["grupo_ejemplo"]
+}
+```
+
+Encabezados:
+
+```text
+Content-Type: application/json
+X-Api-Key: <secreto compartido>
+```
+
+El endpoint valida la clave y el código, comprueba su vencimiento y uso único, y vincula el UUID con el usuario de Discord que generó el código. Los grupos sin rol configurado en el archivo de mapeo no otorgan roles. Un error al sincronizar roles devuelve un estado no exitoso; el plugin puede reintentar la solicitud sin crear un segundo vínculo.
+
+## Compilar
+
+Se requiere Gradle y JDK 25:
+
+```bash
+gradle build
+```
+
+El proyecto resuelve las dependencias de Purpur, LuckPerms, Mojang y PaperMC desde sus repositorios Maven correspondientes.
+
+El JAR se genera en `build/libs/`. Copialo a la carpeta `plugins/` del servidor Purpur y reiniciá el servidor.
+
+LuckPerms debe estar instalado antes de iniciar el plugin.
+
+## Configuración
+
+Al primer inicio se crea `plugins/UNLPCraftLink/config.yml`. Configurá:
+
+- `link-endpoint`: URL HTTPS pública del endpoint del bot, no la URL de la tienda ni SFTP.
+- `api-key`: mismo secreto interno que valide el endpoint del bot. Guardalo solo en el servidor; nunca lo subas a Git.
+- `request-timeout-seconds`: tiempo máximo de espera HTTP.
+
+La URL debe apuntar al dominio HTTPS público del bot, por ejemplo `https://bot.example.com/api/minecraft/link`. No uses la URL de la tienda ni una dirección SFTP.
+
+```
+`minecraft-plugin\build.gradle`:
+
+```gradle
+plugins {
+    id 'java'
+}
+
+group = 'pro.unlpcraft'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = 'https://libraries.minecraft.net'
+        content {
+            includeGroup 'com.mojang'
+        }
+    }
+    maven {
+        url = 'https://repo.papermc.io/repository/maven-public/'
+        content {
+            includeGroup 'net.md-5'
+        }
+    }
+    maven {
+        url = 'https://repo.purpurmc.org/snapshots'
+        content {
+            includeGroup 'org.purpurmc.purpur'
+            includeGroup 'net.luckperms'
+        }
+    }
+}
+
+dependencies {
+    compileOnly 'org.purpurmc.purpur:purpur-api:26.2.build.2633-stable'
+    compileOnly 'net.luckperms:api:5.5'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+
+processResources {
+    filteringCharset = 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand(version: project.version)
+    }
+}
+
+```
+`minecraft-plugin\settings.gradle`:
+
+```gradle
+rootProject.name = 'unlp-craft-link'
+
+```
+`minecraft-plugin\src\main\java\pro\unlpcraft\link\UNLPCraftLinkPlugin.java`:
+
+```java
+package pro.unlpcraft.link;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletionException;
+import java.util.logging.Level;
+
+import net.luckperms.api.LuckPerms;
+import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.model.group.Group;
+import net.luckperms.api.model.user.User;
+import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
+
+public final class UNLPCraftLinkPlugin extends JavaPlugin implements CommandExecutor {
+    private static final String LINK_USAGE = "Uso: /discord link <codigo>";
+    private static final String LINK_CODE_PATTERN = "[A-Za-z0-9-]{6,128}";
+
+    private HttpClient httpClient;
+    private LuckPerms luckPerms;
+
+    @Override
+    public void onEnable() {
+        saveDefaultConfig();
+        httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(getTimeoutSeconds()))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+        luckPerms = LuckPermsProvider.get();
+
+        PluginCommand discordCommand = getCommand("discord");
+        if (discordCommand == null) {
+            getLogger().severe("El comando discord no está declarado en plugin.yml.");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        discordCommand.setExecutor(this);
+        getLogger().info("Plugin habilitado. Comando disponible: /discord link <codigo>");
+    }
+
+    @Override
+    public boolean onCommand(
+            CommandSender sender,
+            Command command,
+            String label,
+            String[] args
+    ) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Este comando solo puede usarlo un jugador.");
+            return true;
+        }
+
+        if (args.length != 2 || !args[0].equalsIgnoreCase("link")) {
+            player.sendMessage(LINK_USAGE);
+            return true;
+        }
+
+        String code = args[1];
+        if (!code.matches(LINK_CODE_PATTERN)) {
+            player.sendMessage("El código no tiene un formato válido. Pedí uno nuevo desde Discord.");
+            return true;
+        }
+
+        URI endpoint = getLinkEndpoint();
+        String apiKey = getConfig().getString("api-key", "").trim();
+        if (endpoint == null || apiKey.isEmpty() || apiKey.equals("REEMPLAZAR")) {
+            player.sendMessage("La integración de vinculación todavía no está configurada.");
+            return true;
+        }
+
+        UUID playerId = player.getUniqueId();
+        String playerName = player.getName();
+        player.sendMessage("Verificando tu cuenta y tus grupos de LuckPerms...");
+
+        luckPerms.getUserManager().loadUser(playerId)
+                .thenCompose(user -> sendLinkRequest(endpoint, apiKey, code, playerId, playerName, user))
+                .whenComplete((response, error) -> Bukkit.getScheduler().runTask(this, () -> {
+                    if (!player.isOnline()) {
+                        return;
+                    }
+                    if (error != null) {
+                        Throwable cause = error instanceof CompletionException && error.getCause() != null
+                                ? error.getCause()
+                                : error;
+                        getLogger().log(Level.WARNING, "Falló la solicitud de vinculación de Minecraft.", cause);
+                        player.sendMessage("No se pudo completar la vinculación. Probá de nuevo más tarde.");
+                        return;
+                    }
+
+                    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                        player.sendMessage("¡Cuenta vinculada! Ya podés cerrar este mensaje.");
+                    } else if (response.statusCode() == 400 || response.statusCode() == 401
+                            || response.statusCode() == 403 || response.statusCode() == 409) {
+                        player.sendMessage("No se pudo vincular. Revisá que el código sea válido y no haya vencido.");
+                    } else {
+                        getLogger().warning("El endpoint de vinculación respondió HTTP " + response.statusCode() + ".");
+                        player.sendMessage("El servicio de vinculación no está disponible. Probá más tarde.");
+                    }
+                }));
+        return true;
+    }
+
+    private java.util.concurrent.CompletionStage<HttpResponse<String>> sendLinkRequest(
+            URI endpoint,
+            String apiKey,
+            String code,
+            UUID playerId,
+            String playerName,
+            User user
+    ) {
+        List<String> groups = user.getInheritedGroups(user.getQueryOptions()).stream()
+                .map(Group::getName)
+                .distinct()
+                .sorted()
+                .toList();
+
+        String body = """
+                {
+                  "code": "%s",
+                  "player": {
+                    "uuid": "%s",
+                    "name": "%s"
+                  },
+                  "groups": [%s]
+                }
+                """.formatted(
+                escapeJson(code),
+                playerId,
+                escapeJson(playerName),
+                groups.stream().map(group -> "\"" + escapeJson(group) + "\"")
+                        .reduce((left, right) -> left + ", " + right)
+                        .orElse("")
+        );
+
+        HttpRequest request = HttpRequest.newBuilder(endpoint)
+                .timeout(Duration.ofSeconds(getTimeoutSeconds()))
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json; charset=utf-8")
+                .header("X-Api-Key", apiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private URI getLinkEndpoint() {
+        String configured = getConfig().getString("link-endpoint", "").trim();
+        try {
+            URI uri = URI.create(configured);
+            if (!"https".equalsIgnoreCase(uri.getScheme())
+                    || uri.getHost() == null
+                    || uri.getUserInfo() != null
+                    || uri.getFragment() != null) {
+                throw new IllegalArgumentException("El endpoint debe ser una URL HTTPS pública.");
+            }
+            return uri;
+        } catch (IllegalArgumentException error) {
+            getLogger().warning("Configuración link-endpoint inválida; se requiere una URL HTTPS.");
+            return null;
+        }
+    }
+
+    private int getTimeoutSeconds() {
+        return Math.max(1, Math.min(60, getConfig().getInt("request-timeout-seconds", 10)));
+    }
+
+    private static String escapeJson(String value) {
+        StringBuilder escaped = new StringBuilder(value.length() + 16);
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                case '"' -> escaped.append("\\\"");
+                case '\\' -> escaped.append("\\\\");
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (character < 0x20) {
+                        escaped.append("\\u%04x".formatted((int) character));
+                    } else {
+                        escaped.append(character);
+                    }
+                }
+            }
+        }
+        return escaped.toString();
+    }
+}
+
+```
+`minecraft-plugin\src\main\resources\config.yml`:
+
+```yml
+# Debe apuntar a la futura ruta HTTPS del bot, no a la web ni al SFTP del hosting.
+link-endpoint: "https://BOT-DOMINIO.example/api/minecraft/link"
+
+# Debe coincidir con la clave que valide el endpoint del bot.
+# No compartas este archivo con la clave real ni la subas a Git.
+api-key: "REEMPLAZAR"
+
+request-timeout-seconds: 10
+
+```
+`minecraft-plugin\src\main\resources\plugin.yml`:
+
+```yml
+name: UNLPCraftLink
+version: '${version}'
+main: pro.unlpcraft.link.UNLPCraftLinkPlugin
+api-version: '26.2'
+depend: [LuckPerms]
+description: Vincula jugadores de Minecraft con Discord mediante un código temporal.
+commands:
+  discord:
+    description: Vincula tu cuenta de Minecraft con Discord.
+    usage: /discord link <codigo>
+
+```
+`package-lock.json`:
+
+```json
+{
+  "name": "unlp-craft-dsbot",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "unlp-craft-dsbot",
+      "version": "1.0.0",
+      "license": "ISC",
+      "dependencies": {
+        "discord.js": "^14.27.0",
+        "dotenv": "^18.0.8",
+        "express": "^5.3.0",
+        "nodemon": "^3.1.14",
+        "rcon-client": "^4.2.5"
+      }
+    },
+    "node_modules/@discordjs/builders": {
+      "version": "1.14.1",
+      "resolved": "https://registry.npmjs.org/@discordjs/builders/-/builders-1.14.1.tgz",
+      "integrity": "sha512-gSKkhXLqs96TCzk66VZuHHl8z2bQMJFGwrXC0f33ngK+FLNau4hU1PYny3DNJfNdSH+gVMzE85/d5FQ2BpcNwQ==",
+      "license": "Apache-2.0",
+      "dependencies": {
+        "@discordjs/formatters": "^0.6.2",
+        "@discordjs/util": "^1.2.0",
+        "@sapphire/shapeshift": "^4.0.0",
+        "discord-api-types": "^0.38.40",
+        "fast-deep-equal": "^3.1.3",
+        "ts-mixer": "^6.0.4",
+        "tslib": "^2.6.3"
+      },
+      "engines": {
+        "node": ">=16.11.0"
+      },
+      "funding": {
+        "url": "https://github.com/discordjs/discord.js?sponsor"
+      }
+    },
+    "node_modules/@discordjs/collection": {
+      "version": "1.5.3",
+      "resolved": "https://registry.npmjs.org/@discordjs/collection/-/collection-1.5.3.tgz",
+      "integrity": "sha512-SVb428OMd3WO1paV3rm6tSjM4wC+Kecaa1EUGX7vc6/fddvw/6lg90z4QtCqm21zvVe92vMMDt9+DkIvjXImQQ==",
+      "license": "Apache-2.0",
+      "engines": {
+        "node": ">=16.11.0"
+      }
+    },
+    "node_modules/@discordjs/formatters": {
+      "version": "0.6.2",
+      "resolved": "https://registry.npmjs.org/@discordjs/formatters/-/formatters-0.6.2.tgz",
+      "integrity": "sha512-y4UPwWhH6vChKRkGdMB4odasUbHOUwy7KL+OVwF86PvT6QVOwElx+TiI1/6kcmcEe+g5YRXJFiXSXUdabqZOvQ==",
+      "license": "Apache-2.0",
+      "dependencies": {
+        "discord-api-types": "^0.38.33"
+      },
+      "engines": {
+        "node": ">=16.11.0"
+      },
+      "funding": {
+        "url": "https://github.com/discordjs/discord.js?sponsor"
+      }
+    },
+    "node_modules/@discordjs/rest": {
+      "version": "2.6.3",
+      "resolved": "https://registry.npmjs.org/@discordjs/rest/-/rest-2.6.3.tgz",
+      "integrity": "sha512-wvOylxNYJkwKjctS/Mn5GP1w9r3/rzyH+ThD1JlAca6zEdlHs8QWBBUQJpU5Q+W6DoIj/Ljh1IPlZs7hTU+UAg==",
+      "license": "Apache-2.0",
+      "dependencies": {
+        "@discordjs/collection": "^2.1.1",
+        "@discordjs/util": "^1.2.0",
+        "@sapphire/async-queue": "^1.5.3",
+        "@sapphire/snowflake": "^3.5.5",
+        "@vladfrangu/async_event_emitter": "^2.4.6",
+        "discord-api-types": "^0.38.50",
+        "magic-bytes.js": "^1.13.0",
+        "tslib": "^2.6.3",
+        "undici": "^6.27.0"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "url": "https://github.com/discordjs/discord.js?sponsor"
+      }
+    },
+    "node_modules/@discordjs/rest/node_modules/@discordjs/collection": {
+      "version": "2.1.1",
+      "resolved": "https://registry.npmjs.org/@discordjs/collection/-/collection-2.1.1.tgz",
+      "integrity": "sha512-LiSusze9Tc7qF03sLCujF5iZp7K+vRNEDBZ86FT9aQAv3vxMLihUvKvpsCWiQ2DJq1tVckopKm1rxomgNUc9hg==",
+      "license": "Apache-2.0",
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "url": "https://github.com/discordjs/discord.js?sponsor"
+      }
+    },
+    "node_modules/@discordjs/util": {
+      "version": "1.2.0",
+      "resolved": "https://registry.npmjs.org/@discordjs/util/-/util-1.2.0.tgz",
+      "integrity": "sha512-3LKP7F2+atl9vJFhaBjn4nOaSWahZ/yWjOvA4e5pnXkt2qyXRCHLxoBQy81GFtLGCq7K9lPm9R517M1U+/90Qg==",
+      "license": "Apache-2.0",
+      "dependencies": {
+        "discord-api-types": "^0.38.33"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "url": "https://github.com/discordjs/discord.js?sponsor"
+      }
+    },
+    "node_modules/@discordjs/ws": {
+      "version": "1.2.3",
+      "resolved": "https://registry.npmjs.org/@discordjs/ws/-/ws-1.2.3.tgz",
+      "integrity": "sha512-wPlQDxEmlDg5IxhJPuxXr3Vy9AjYq5xCvFWGJyD7w7Np8ZGu+Mc+97LCoEc/+AYCo2IDpKioiH0/c/mj5ZR9Uw==",
+      "license": "Apache-2.0",
+      "dependencies": {
+        "@discordjs/collection": "^2.1.0",
+        "@discordjs/rest": "^2.5.1",
+        "@discordjs/util": "^1.1.0",
+        "@sapphire/async-queue": "^1.5.2",
+        "@types/ws": "^8.5.10",
+        "@vladfrangu/async_event_emitter": "^2.2.4",
+        "discord-api-types": "^0.38.1",
+        "tslib": "^2.6.2",
+        "ws": "^8.17.0"
+      },
+      "engines": {
+        "node": ">=16.11.0"
+      },
+      "funding": {
+        "url": "https://github.com/discordjs/discord.js?sponsor"
+      }
+    },
+    "node_modules/@discordjs/ws/node_modules/@discordjs/collection": {
+      "version": "2.1.1",
+      "resolved": "https://registry.npmjs.org/@discordjs/collection/-/collection-2.1.1.tgz",
+      "integrity": "sha512-LiSusze9Tc7qF03sLCujF5iZp7K+vRNEDBZ86FT9aQAv3vxMLihUvKvpsCWiQ2DJq1tVckopKm1rxomgNUc9hg==",
+      "license": "Apache-2.0",
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "url": "https://github.com/discordjs/discord.js?sponsor"
+      }
+    },
+    "node_modules/@sapphire/async-queue": {
+      "version": "1.5.5",
+      "resolved": "https://registry.npmjs.org/@sapphire/async-queue/-/async-queue-1.5.5.tgz",
+      "integrity": "sha512-cvGzxbba6sav2zZkH8GPf2oGk9yYoD5qrNWdu9fRehifgnFZJMV+nuy2nON2roRO4yQQ+v7MK/Pktl/HgfsUXg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=v14.0.0",
+        "npm": ">=7.0.0"
+      }
+    },
+    "node_modules/@sapphire/shapeshift": {
+      "version": "4.0.0",
+      "resolved": "https://registry.npmjs.org/@sapphire/shapeshift/-/shapeshift-4.0.0.tgz",
+      "integrity": "sha512-d9dUmWVA7MMiKobL3VpLF8P2aeanRTu6ypG2OIaEv/ZHH/SUQ2iHOVyi5wAPjQ+HmnMuL0whK9ez8I/raWbtIg==",
+      "license": "MIT",
+      "dependencies": {
+        "fast-deep-equal": "^3.1.3",
+        "lodash": "^4.17.21"
+      },
+      "engines": {
+        "node": ">=v16"
+      }
+    },
+    "node_modules/@sapphire/snowflake": {
+      "version": "3.5.5",
+      "resolved": "https://registry.npmjs.org/@sapphire/snowflake/-/snowflake-3.5.5.tgz",
+      "integrity": "sha512-xzvBr1Q1c4lCe7i6sRnrofxeO1QTP/LKQ6A6qy0iB4x5yfiSfARMEQEghojzTNALDTcv8En04qYNIco9/K9eZQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=v14.0.0",
+        "npm": ">=7.0.0"
+      }
+    },
+    "node_modules/@types/node": {
+      "version": "26.6.5",
+      "resolved": "https://registry.npmjs.org/@types/node/-/node-26.6.5.tgz",
+      "integrity": "sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg==",
+      "license": "MIT",
+      "dependencies": {
+        "undici-types": "~8.9.0"
+      }
+    },
+    "node_modules/@types/ws": {
+      "version": "8.18.2",
+      "resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.2.tgz",
+      "integrity": "sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==",
+      "license": "MIT",
+      "dependencies": {
+        "@types/node": "*"
+      }
+    },
+    "node_modules/@vladfrangu/async_event_emitter": {
+      "version": "2.4.7",
+      "resolved": "https://registry.npmjs.org/@vladfrangu/async_event_emitter/-/async_event_emitter-2.4.7.tgz",
+      "integrity": "sha512-Xfe6rpCTxSxfbswi/W/Pz7zp1WWSNn4A0eW4mLkQUewCrXXtMj31lCg+iQyTkh/CkusZSq9eDflu7tjEDXUY6g==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=v14.0.0",
+        "npm": ">=7.0.0"
+      }
+    },
+    "node_modules/accepts": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/accepts/-/accepts-2.0.0.tgz",
+      "integrity": "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==",
+      "license": "MIT",
+      "dependencies": {
+        "mime-types": "^3.0.0",
+        "negotiator": "^1.0.0"
+      },
+      "engines": {
+        "node": ">= 0.6"
+      }
+    },
+    "node_modules/anymatch": {
+      "version": "3.1.3",
+      "resolved": "https://registry.npmjs.org/anymatch/-/anymatch-3.1.3.tgz",
+      "integrity": "sha512-KMReFUr0B4t+D+OBkjR3KYqvocp2XaSzO55UcB6mgQMd3KbcE+mWTyvVV7D/zsdEbNnV6acZUutkiHQXvTr1Rw==",
+      "license": "ISC",
+      "dependencies": {
+        "normalize-path": "^3.0.0",
+        "picomatch": "^2.0.4"
+      },
+      "engines": {
+        "node": ">= 8"
+      }
+    },
+    "node_modules/balanced-match": {
+      "version": "4.0.4",
+      "resolved": "https://registry.npmjs.org/balanced-match/-/balanced-match-4.0.4.tgz",
+      "integrity": "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==",
+      "license": "MIT",
+      "engines": {
+        "node": "18 || 20 || >=22"
+      }
+    },
+    "node_modules/binary-extensions": {
+      "version": "2.3.0",
+      "resolved": "https://registry.npmjs.org/binary-extensions/-/binary-extensions-2.3.0.tgz",
+      "integrity": "sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=8"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/sindresorhus"
+      }
+    },
+    "node_modules/body-parser": {
+      "version": "2.3.0",
+      "resolved": "https://registry.npmjs.org/body-parser/-/body-parser-2.3.0.tgz",
+      "integrity": "sha512-2cGmJupaNgg+QUwVLAucDuWuoMZ6EX9iHDRswZ5lsNYEmwPaRknMPCLZz07yTzVq/83p4o/wzbDZbBrTvGGTIw==",
+      "license": "MIT",
+      "dependencies": {
+        "bytes": "^3.1.2",
+        "content-type": "^2.0.0",
+        "debug": "^4.4.3",
+        "http-errors": "^2.0.1",
+        "iconv-lite": "^0.7.2",
+        "on-finished": "^2.4.1",
+        "qs": "^6.15.2",
+        "raw-body": "^3.0.2",
+        "type-is": "^2.1.0"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/brace-expansion": {
+      "version": "5.0.12",
+      "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.12.tgz",
+      "integrity": "sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==",
+      "license": "MIT",
+      "dependencies": {
+        "balanced-match": "^4.0.2"
+      },
+      "engines": {
+        "node": "20 || >=22"
+      }
+    },
+    "node_modules/braces": {
+      "version": "3.0.3",
+      "resolved": "https://registry.npmjs.org/braces/-/braces-3.0.3.tgz",
+      "integrity": "sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==",
+      "license": "MIT",
+      "dependencies": {
+        "fill-range": "^7.1.1"
+      },
+      "engines": {
+        "node": ">=8"
+      }
+    },
+    "node_modules/bytes": {
+      "version": "3.1.2",
+      "resolved": "https://registry.npmjs.org/bytes/-/bytes-3.1.2.tgz",
+      "integrity": "sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/call-bind-apply-helpers": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/call-bind-apply-helpers/-/call-bind-apply-helpers-1.0.2.tgz",
+      "integrity": "sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==",
+      "license": "MIT",
+      "dependencies": {
+        "es-errors": "^1.3.0",
+        "function-bind": "^1.1.2"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/call-bound": {
+      "version": "1.0.4",
+      "resolved": "https://registry.npmjs.org/call-bound/-/call-bound-1.0.4.tgz",
+      "integrity": "sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==",
+      "license": "MIT",
+      "dependencies": {
+        "call-bind-apply-helpers": "^1.0.2",
+        "get-intrinsic": "^1.3.0"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/chokidar": {
+      "version": "3.6.0",
+      "resolved": "https://registry.npmjs.org/chokidar/-/chokidar-3.6.0.tgz",
+      "integrity": "sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==",
+      "license": "MIT",
+      "dependencies": {
+        "anymatch": "~3.1.2",
+        "braces": "~3.0.2",
+        "glob-parent": "~5.1.2",
+        "is-binary-path": "~2.1.0",
+        "is-glob": "~4.0.1",
+        "normalize-path": "~3.0.0",
+        "readdirp": "~3.6.0"
+      },
+      "engines": {
+        "node": ">= 8.10.0"
+      },
+      "funding": {
+        "url": "https://paulmillr.com/funding/"
+      },
+      "optionalDependencies": {
+        "fsevents": "~2.3.2"
+      }
+    },
+    "node_modules/content-disposition": {
+      "version": "2.0.1",
+      "resolved": "https://registry.npmjs.org/content-disposition/-/content-disposition-2.0.1.tgz",
+      "integrity": "sha512-e+H0ZXHSWYrENhQzw1LPuP4oF5MzVKmDU6d3hxlvaPEYLLg62MxtQNPRx4SYSuYJSBUgnQIG4HIN2tEtNv7Dog==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/content-type": {
+      "version": "2.1.0",
+      "resolved": "https://registry.npmjs.org/content-type/-/content-type-2.1.0.tgz",
+      "integrity": "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/cookie": {
+      "version": "0.7.2",
+      "resolved": "https://registry.npmjs.org/cookie/-/cookie-0.7.2.tgz",
+      "integrity": "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.6"
+      }
+    },
+    "node_modules/cookie-signature": {
+      "version": "1.2.2",
+      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.2.2.tgz",
+      "integrity": "sha512-D76uU73ulSXrD1UXF4KE2TMxVVwhsnCgfAyTg9k8P6KGZjlXKrOLe4dJQKI3Bxi5wjesZoFXJWElNWBjPZMbhg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.6.0"
+      }
+    },
+    "node_modules/debug": {
+      "version": "4.4.3",
+      "resolved": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
+      "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
+      "license": "MIT",
+      "dependencies": {
+        "ms": "^2.1.3"
+      },
+      "engines": {
+        "node": ">=6.0"
+      },
+      "peerDependenciesMeta": {
+        "supports-color": {
+          "optional": true
+        }
+      }
+    },
+    "node_modules/depd": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/depd/-/depd-2.0.0.tgz",
+      "integrity": "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/discord-api-types": {
+      "version": "0.38.57",
+      "resolved": "https://registry.npmjs.org/discord-api-types/-/discord-api-types-0.38.57.tgz",
+      "integrity": "sha512-R1CTSSt4RshqCq23j2Xq2ZscvzB4LzG9OB1CYQdKUGdw8Ti/oF/72EEtK2mNpagG/Vj9NcBT7dw9lKLf+Dacfg==",
+      "license": "MIT"
+    },
+    "node_modules/discord.js": {
+      "version": "14.27.0",
+      "resolved": "https://registry.npmjs.org/discord.js/-/discord.js-14.27.0.tgz",
+      "integrity": "sha512-qHbFlFG2N7y3LjPySYsL6A1+BnX6bkTVgo842EX0CqVPk/KTMwZkojPHEXKsQUpWZNyz5BISNHK1cPpQw0+m4A==",
+      "license": "Apache-2.0",
+      "dependencies": {
+        "@discordjs/builders": "^1.14.1",
+        "@discordjs/collection": "1.5.3",
+        "@discordjs/formatters": "^0.6.2",
+        "@discordjs/rest": "^2.6.2",
+        "@discordjs/util": "^1.2.0",
+        "@discordjs/ws": "^1.2.3",
+        "@sapphire/snowflake": "3.5.5",
+        "discord-api-types": "^0.38.49",
+        "fast-deep-equal": "3.1.3",
+        "lodash.snakecase": "4.1.1",
+        "magic-bytes.js": "^1.13.0",
+        "tslib": "^2.6.3",
+        "undici": "^6.27.0"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "url": "https://github.com/discordjs/discord.js?sponsor"
+      }
+    },
+    "node_modules/dotenv": {
+      "version": "18.0.8",
+      "resolved": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.8.tgz",
+      "integrity": "sha512-2KDeoFoK/zRtcnbunCDlLG5VWVMcyqeQc6iK65o231nfNAcuGrKoqUQfJFUtBI+QlShk5HKIHxwebBtUl3rEfA==",
+      "license": "BSD-2-Clause",
+      "bin": {
+        "dotenv": "dist/index.cjs"
+      },
+      "engines": {
+        "node": ">=12"
+      },
+      "funding": {
+        "url": "https://dotenvx.com"
+      }
+    },
+    "node_modules/dunder-proto": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz",
+      "integrity": "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==",
+      "license": "MIT",
+      "dependencies": {
+        "call-bind-apply-helpers": "^1.0.1",
+        "es-errors": "^1.3.0",
+        "gopd": "^1.2.0"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/ee-first": {
+      "version": "1.1.1",
+      "resolved": "https://registry.npmjs.org/ee-first/-/ee-first-1.1.1.tgz",
+      "integrity": "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==",
+      "license": "MIT"
+    },
+    "node_modules/encodeurl": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/encodeurl/-/encodeurl-2.0.0.tgz",
+      "integrity": "sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/es-define-property": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/es-define-property/-/es-define-property-1.0.1.tgz",
+      "integrity": "sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/es-errors": {
+      "version": "1.3.0",
+      "resolved": "https://registry.npmjs.org/es-errors/-/es-errors-1.3.0.tgz",
+      "integrity": "sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/es-object-atoms": {
+      "version": "1.1.2",
+      "resolved": "https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.1.2.tgz",
+      "integrity": "sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw==",
+      "license": "MIT",
+      "dependencies": {
+        "es-errors": "^1.3.0"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/escape-html": {
+      "version": "1.0.3",
+      "resolved": "https://registry.npmjs.org/escape-html/-/escape-html-1.0.3.tgz",
+      "integrity": "sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow==",
+      "license": "MIT"
+    },
+    "node_modules/etag": {
+      "version": "1.8.1",
+      "resolved": "https://registry.npmjs.org/etag/-/etag-1.8.1.tgz",
+      "integrity": "sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.6"
+      }
+    },
+    "node_modules/express": {
+      "version": "5.3.0",
+      "resolved": "https://registry.npmjs.org/express/-/express-5.3.0.tgz",
+      "integrity": "sha512-qCqy1xSoaugxOD4IVHb1ZWdkvCF2W3aE2okKouWj8VwJ+ztskSiXoBnCSJqfKT+cVPJhuJqe9YLbY425+Zh00g==",
+      "license": "MIT",
+      "dependencies": {
+        "accepts": "^2.0.0",
+        "body-parser": "^2.3.0",
+        "content-disposition": "^2.0.1",
+        "content-type": "^2.0.0",
+        "cookie": "^0.7.1",
+        "cookie-signature": "^1.2.1",
+        "debug": "^4.4.0",
+        "depd": "^2.0.0",
+        "encodeurl": "^2.0.0",
+        "escape-html": "^1.0.3",
+        "etag": "^1.8.1",
+        "finalhandler": "^2.1.0",
+        "fresh": "^2.0.0",
+        "http-errors": "^2.0.0",
+        "merge-descriptors": "^2.0.0",
+        "mime-types": "^3.0.0",
+        "on-finished": "^2.4.1",
+        "once": "^1.4.0",
+        "parseurl": "^1.3.3",
+        "proxy-addr": "^2.0.8",
+        "qs": "^6.16.0",
+        "range-parser": "^1.2.1",
+        "router": "^2.2.0",
+        "send": "^1.1.0",
+        "serve-static": "^2.2.0",
+        "statuses": "^2.0.1",
+        "type-is": "^2.1.0",
+        "vary": "^1.1.2"
+      },
+      "engines": {
+        "node": ">= 18"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/fast-deep-equal": {
+      "version": "3.1.3",
+      "resolved": "https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz",
+      "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==",
+      "license": "MIT"
+    },
+    "node_modules/fill-range": {
+      "version": "7.1.1",
+      "resolved": "https://registry.npmjs.org/fill-range/-/fill-range-7.1.1.tgz",
+      "integrity": "sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==",
+      "license": "MIT",
+      "dependencies": {
+        "to-regex-range": "^5.0.1"
+      },
+      "engines": {
+        "node": ">=8"
+      }
+    },
+    "node_modules/finalhandler": {
+      "version": "2.1.1",
+      "resolved": "https://registry.npmjs.org/finalhandler/-/finalhandler-2.1.1.tgz",
+      "integrity": "sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA==",
+      "license": "MIT",
+      "dependencies": {
+        "debug": "^4.4.0",
+        "encodeurl": "^2.0.0",
+        "escape-html": "^1.0.3",
+        "on-finished": "^2.4.1",
+        "parseurl": "^1.3.3",
+        "statuses": "^2.0.1"
+      },
+      "engines": {
+        "node": ">= 18.0.0"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/forwarded": {
+      "version": "0.2.0",
+      "resolved": "https://registry.npmjs.org/forwarded/-/forwarded-0.2.0.tgz",
+      "integrity": "sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.6"
+      }
+    },
+    "node_modules/fresh": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/fresh/-/fresh-2.0.0.tgz",
+      "integrity": "sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/fsevents": {
+      "version": "2.3.3",
+      "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz",
+      "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
+      "hasInstallScript": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
+      }
+    },
+    "node_modules/function-bind": {
+      "version": "1.1.2",
+      "resolved": "https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz",
+      "integrity": "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==",
+      "license": "MIT",
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/get-intrinsic": {
+      "version": "1.3.0",
+      "resolved": "https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.3.0.tgz",
+      "integrity": "sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==",
+      "license": "MIT",
+      "dependencies": {
+        "call-bind-apply-helpers": "^1.0.2",
+        "es-define-property": "^1.0.1",
+        "es-errors": "^1.3.0",
+        "es-object-atoms": "^1.1.1",
+        "function-bind": "^1.1.2",
+        "get-proto": "^1.0.1",
+        "gopd": "^1.2.0",
+        "has-symbols": "^1.1.0",
+        "hasown": "^2.0.2",
+        "math-intrinsics": "^1.1.0"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/get-proto": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/get-proto/-/get-proto-1.0.1.tgz",
+      "integrity": "sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==",
+      "license": "MIT",
+      "dependencies": {
+        "dunder-proto": "^1.0.1",
+        "es-object-atoms": "^1.0.0"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/glob-parent": {
+      "version": "5.1.2",
+      "resolved": "https://registry.npmjs.org/glob-parent/-/glob-parent-5.1.2.tgz",
+      "integrity": "sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==",
+      "license": "ISC",
+      "dependencies": {
+        "is-glob": "^4.0.1"
+      },
+      "engines": {
+        "node": ">= 6"
+      }
+    },
+    "node_modules/gopd": {
+      "version": "1.2.0",
+      "resolved": "https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz",
+      "integrity": "sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/has-flag": {
+      "version": "3.0.0",
+      "resolved": "https://registry.npmjs.org/has-flag/-/has-flag-3.0.0.tgz",
+      "integrity": "sha512-sKJf1+ceQBr4SMkvQnBDNDtf4TXpVhVGateu0t918bl30FnbE2m4vNLX+VWe/dpjlb+HugGYzW7uQXH98HPEYw==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=4"
+      }
+    },
+    "node_modules/has-symbols": {
+      "version": "1.1.0",
+      "resolved": "https://registry.npmjs.org/has-symbols/-/has-symbols-1.1.0.tgz",
+      "integrity": "sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/hasown": {
+      "version": "2.0.4",
+      "resolved": "https://registry.npmjs.org/hasown/-/hasown-2.0.4.tgz",
+      "integrity": "sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==",
+      "license": "MIT",
+      "dependencies": {
+        "function-bind": "^1.1.2"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/http-errors": {
+      "version": "2.0.1",
+      "resolved": "https://registry.npmjs.org/http-errors/-/http-errors-2.0.1.tgz",
+      "integrity": "sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==",
+      "license": "MIT",
+      "dependencies": {
+        "depd": "~2.0.0",
+        "inherits": "~2.0.4",
+        "setprototypeof": "~1.2.0",
+        "statuses": "~2.0.2",
+        "toidentifier": "~1.0.1"
+      },
+      "engines": {
+        "node": ">= 0.8"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/iconv-lite": {
+      "version": "0.7.3",
+      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.7.3.tgz",
+      "integrity": "sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==",
+      "license": "MIT",
+      "dependencies": {
+        "safer-buffer": ">= 2.1.2 < 3.0.0"
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/ignore-by-default": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/ignore-by-default/-/ignore-by-default-1.0.1.tgz",
+      "integrity": "sha512-Ius2VYcGNk7T90CppJqcIkS5ooHUZyIQK+ClZfMfMNFEF9VSE73Fq+906u/CWu92x4gzZMWOwfFYckPObzdEbA==",
+      "license": "ISC"
+    },
+    "node_modules/inherits": {
+      "version": "2.0.4",
+      "resolved": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz",
+      "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==",
+      "license": "ISC"
+    },
+    "node_modules/ipaddr.js": {
+      "version": "1.9.1",
+      "resolved": "https://registry.npmjs.org/ipaddr.js/-/ipaddr.js-1.9.1.tgz",
+      "integrity": "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.10"
+      }
+    },
+    "node_modules/is-binary-path": {
+      "version": "2.1.0",
+      "resolved": "https://registry.npmjs.org/is-binary-path/-/is-binary-path-2.1.0.tgz",
+      "integrity": "sha512-ZMERYes6pDydyuGidse7OsHxtbI7WVeUEozgR/g7rd0xUimYNlvZRE/K2MgZTjWy725IfelLeVcEM97mmtRGXw==",
+      "license": "MIT",
+      "dependencies": {
+        "binary-extensions": "^2.0.0"
+      },
+      "engines": {
+        "node": ">=8"
+      }
+    },
+    "node_modules/is-extglob": {
+      "version": "2.1.1",
+      "resolved": "https://registry.npmjs.org/is-extglob/-/is-extglob-2.1.1.tgz",
+      "integrity": "sha512-SbKbANkN603Vi4jEZv49LeVJMn4yGwsbzZworEoyEiutsN3nJYdbO36zfhGJ6QEDpOZIFkDtnq5JRxmvl3jsoQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/is-glob": {
+      "version": "4.0.3",
+      "resolved": "https://registry.npmjs.org/is-glob/-/is-glob-4.0.3.tgz",
+      "integrity": "sha512-xelSayHH36ZgE7ZWhli7pW34hNbNl8Ojv5KVmkJD4hBdD3th8Tfk9vYasLM+mXWOZhFkgZfxhLSnrwRr4elSSg==",
+      "license": "MIT",
+      "dependencies": {
+        "is-extglob": "^2.1.1"
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/is-number": {
+      "version": "7.0.0",
+      "resolved": "https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz",
+      "integrity": "sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.12.0"
+      }
+    },
+    "node_modules/is-promise": {
+      "version": "4.0.0",
+      "resolved": "https://registry.npmjs.org/is-promise/-/is-promise-4.0.0.tgz",
+      "integrity": "sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ==",
+      "license": "MIT"
+    },
+    "node_modules/lodash": {
+      "version": "4.18.1",
+      "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz",
+      "integrity": "sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==",
+      "license": "MIT"
+    },
+    "node_modules/lodash.snakecase": {
+      "version": "4.1.1",
+      "resolved": "https://registry.npmjs.org/lodash.snakecase/-/lodash.snakecase-4.1.1.tgz",
+      "integrity": "sha512-QZ1d4xoBHYUeuouhEq3lk3Uq7ldgyFXGBhg04+oRLnIz8o9T65Eh+8YdroUwn846zchkA9yDsDl5CVVaV2nqYw==",
+      "license": "MIT"
+    },
+    "node_modules/magic-bytes.js": {
+      "version": "1.13.1",
+      "resolved": "https://registry.npmjs.org/magic-bytes.js/-/magic-bytes.js-1.13.1.tgz",
+      "integrity": "sha512-x5sn4UX2k5gCWlcfmoFwG4TPie8+dctESyqOBdhB5p6MsgWXdBKGmt9nXPObj/JI50TTL928lc5Yt1WntMn1bw==",
+      "license": "MIT"
+    },
+    "node_modules/math-intrinsics": {
+      "version": "1.1.0",
+      "resolved": "https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz",
+      "integrity": "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/media-typer": {
+      "version": "1.1.1",
+      "resolved": "https://registry.npmjs.org/media-typer/-/media-typer-1.1.1.tgz",
+      "integrity": "sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/merge-descriptors": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/merge-descriptors/-/merge-descriptors-2.0.0.tgz",
+      "integrity": "sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/sindresorhus"
+      }
+    },
+    "node_modules/mime-db": {
+      "version": "1.54.0",
+      "resolved": "https://registry.npmjs.org/mime-db/-/mime-db-1.54.0.tgz",
+      "integrity": "sha512-aU5EJuIN2WDemCcAp2vFBfp/m4EAhWJnUNSSw0ixs7/kXbd6Pg64EmwJkNdFhB8aWt1sH2CTXrLxo/iAGV3oPQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.6"
+      }
+    },
+    "node_modules/mime-types": {
+      "version": "3.0.2",
+      "resolved": "https://registry.npmjs.org/mime-types/-/mime-types-3.0.2.tgz",
+      "integrity": "sha512-Lbgzdk0h4juoQ9fCKXW4by0UJqj+nOOrI9MJ1sSj4nI8aI2eo1qmvQEie4VD1glsS250n15LsWsYtCugiStS5A==",
+      "license": "MIT",
+      "dependencies": {
+        "mime-db": "^1.54.0"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/minimatch": {
+      "version": "10.2.6",
+      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-10.2.6.tgz",
+      "integrity": "sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==",
+      "license": "BlueOak-1.0.0",
+      "dependencies": {
+        "brace-expansion": "^5.0.8"
+      },
+      "engines": {
+        "node": "18 || 20 || >=22"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/isaacs"
+      }
+    },
+    "node_modules/ms": {
+      "version": "2.1.3",
+      "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+      "license": "MIT"
+    },
+    "node_modules/negotiator": {
+      "version": "1.1.0",
+      "resolved": "https://registry.npmjs.org/negotiator/-/negotiator-1.1.0.tgz",
+      "integrity": "sha512-NMPBRMJgiQHjbd8phG3Vebdx4kZ1H121rbl5IkMqeOsahptB9BKo/d7oJ3zTXqTgagn2bWlNSXkh0QUGM31RYg==",
+      "license": "MIT",
+      "dependencies": {
+        "content-type": "^2.1.0"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/nodemon": {
+      "version": "3.1.14",
+      "resolved": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.14.tgz",
+      "integrity": "sha512-jakjZi93UtB3jHMWsXL68FXSAosbLfY0In5gtKq3niLSkrWznrVBzXFNOEMJUfc9+Ke7SHWoAZsiMkNP3vq6Jw==",
+      "license": "MIT",
+      "dependencies": {
+        "chokidar": "^3.5.2",
+        "debug": "^4",
+        "ignore-by-default": "^1.0.1",
+        "minimatch": "^10.2.1",
+        "pstree.remy": "^1.1.8",
+        "semver": "^7.5.3",
+        "simple-update-notifier": "^2.0.0",
+        "supports-color": "^5.5.0",
+        "touch": "^3.1.0",
+        "undefsafe": "^2.0.5"
+      },
+      "bin": {
+        "nodemon": "bin/nodemon.js"
+      },
+      "engines": {
+        "node": ">=10"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/nodemon"
+      }
+    },
+    "node_modules/normalize-path": {
+      "version": "3.0.0",
+      "resolved": "https://registry.npmjs.org/normalize-path/-/normalize-path-3.0.0.tgz",
+      "integrity": "sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/object-inspect": {
+      "version": "1.13.4",
+      "resolved": "https://registry.npmjs.org/object-inspect/-/object-inspect-1.13.4.tgz",
+      "integrity": "sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/on-finished": {
+      "version": "2.4.1",
+      "resolved": "https://registry.npmjs.org/on-finished/-/on-finished-2.4.1.tgz",
+      "integrity": "sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==",
+      "license": "MIT",
+      "dependencies": {
+        "ee-first": "1.1.1"
+      },
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/once": {
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/once/-/once-1.4.0.tgz",
+      "integrity": "sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==",
+      "license": "ISC",
+      "dependencies": {
+        "wrappy": "1"
+      }
+    },
+    "node_modules/parseurl": {
+      "version": "1.3.3",
+      "resolved": "https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz",
+      "integrity": "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/path-to-regexp": {
+      "version": "8.4.2",
+      "resolved": "https://registry.npmjs.org/path-to-regexp/-/path-to-regexp-8.4.2.tgz",
+      "integrity": "sha512-qRcuIdP69NPm4qbACK+aDogI5CBDMi1jKe0ry5rSQJz8JVLsC7jV8XpiJjGRLLol3N+R5ihGYcrPLTno6pAdBA==",
+      "license": "MIT",
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/picomatch": {
+      "version": "2.3.2",
+      "resolved": "https://registry.npmjs.org/picomatch/-/picomatch-2.3.2.tgz",
+      "integrity": "sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=8.6"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/jonschlinkert"
+      }
+    },
+    "node_modules/proxy-addr": {
+      "version": "2.0.8",
+      "resolved": "https://registry.npmjs.org/proxy-addr/-/proxy-addr-2.0.8.tgz",
+      "integrity": "sha512-5nnx0yGyVUcY6t9RnWcARWtwT9F1D8O9rt08htPvnd49W1IgZtmLkhu9WfMzQj1cFxjHIO6connUNVW5k7AVyQ==",
+      "license": "MIT",
+      "dependencies": {
+        "forwarded": "0.2.0",
+        "ipaddr.js": "1.9.1"
+      },
+      "engines": {
+        "node": ">= 0.10"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/pstree.remy": {
+      "version": "1.1.8",
+      "resolved": "https://registry.npmjs.org/pstree.remy/-/pstree.remy-1.1.8.tgz",
+      "integrity": "sha512-77DZwxQmxKnu3aR542U+X8FypNzbfJ+C5XQDk3uWjWxn6151aIMGthWYRXTqT1E5oJvg+ljaa2OJi+VfvCOQ8w==",
+      "license": "MIT"
+    },
+    "node_modules/qs": {
+      "version": "6.16.1",
+      "resolved": "https://registry.npmjs.org/qs/-/qs-6.16.1.tgz",
+      "integrity": "sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==",
+      "license": "BSD-3-Clause",
+      "dependencies": {
+        "es-define-property": "^1.0.1",
+        "side-channel": "^1.1.1"
+      },
+      "engines": {
+        "node": ">=0.6"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/range-parser": {
+      "version": "1.3.0",
+      "resolved": "https://registry.npmjs.org/range-parser/-/range-parser-1.3.0.tgz",
+      "integrity": "sha512-hek2mFQpPuI4E1BBKrSto+BU3e3x4xuarsbiwr3+lf7p44juvFMV0XFWQAP3xUyqXA4RrXLIoaSUGbSt056ZMw==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.6"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/raw-body": {
+      "version": "3.0.2",
+      "resolved": "https://registry.npmjs.org/raw-body/-/raw-body-3.0.2.tgz",
+      "integrity": "sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA==",
+      "license": "MIT",
+      "dependencies": {
+        "bytes": "~3.1.2",
+        "http-errors": "~2.0.1",
+        "iconv-lite": "~0.7.0",
+        "unpipe": "~1.0.0"
+      },
+      "engines": {
+        "node": ">= 0.10"
+      }
+    },
+    "node_modules/rcon-client": {
+      "version": "4.2.5",
+      "resolved": "https://registry.npmjs.org/rcon-client/-/rcon-client-4.2.5.tgz",
+      "integrity": "sha512-AnX1GU/ZTlwtYup3H6h0J1hwfP3OYltXVe+8ReBzmNEepX3xGH8nDg7gYqT5Y9rpAS/LmQ48h0BKINt1YGd8bA==",
+      "license": "MIT",
+      "dependencies": {
+        "typed-emitter": "^0.1.0"
+      }
+    },
+    "node_modules/readdirp": {
+      "version": "3.6.0",
+      "resolved": "https://registry.npmjs.org/readdirp/-/readdirp-3.6.0.tgz",
+      "integrity": "sha512-hOS089on8RduqdbhvQ5Z37A0ESjsqz6qnRcffsMU3495FuTdqSm+7bhJ29JvIOsBDEEnan5DPu9t3To9VRlMzA==",
+      "license": "MIT",
+      "dependencies": {
+        "picomatch": "^2.2.1"
+      },
+      "engines": {
+        "node": ">=8.10.0"
+      }
+    },
+    "node_modules/router": {
+      "version": "2.2.0",
+      "resolved": "https://registry.npmjs.org/router/-/router-2.2.0.tgz",
+      "integrity": "sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==",
+      "license": "MIT",
+      "dependencies": {
+        "debug": "^4.4.0",
+        "depd": "^2.0.0",
+        "is-promise": "^4.0.0",
+        "parseurl": "^1.3.3",
+        "path-to-regexp": "^8.0.0"
+      },
+      "engines": {
+        "node": ">= 18"
+      }
+    },
+    "node_modules/safer-buffer": {
+      "version": "2.1.2",
+      "resolved": "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz",
+      "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==",
+      "license": "MIT"
+    },
+    "node_modules/semver": {
+      "version": "7.8.5",
+      "resolved": "https://registry.npmjs.org/semver/-/semver-7.8.5.tgz",
+      "integrity": "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==",
+      "license": "ISC",
+      "bin": {
+        "semver": "bin/semver.js"
+      },
+      "engines": {
+        "node": ">=10"
+      }
+    },
+    "node_modules/send": {
+      "version": "1.2.1",
+      "resolved": "https://registry.npmjs.org/send/-/send-1.2.1.tgz",
+      "integrity": "sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ==",
+      "license": "MIT",
+      "dependencies": {
+        "debug": "^4.4.3",
+        "encodeurl": "^2.0.0",
+        "escape-html": "^1.0.3",
+        "etag": "^1.8.1",
+        "fresh": "^2.0.0",
+        "http-errors": "^2.0.1",
+        "mime-types": "^3.0.2",
+        "ms": "^2.1.3",
+        "on-finished": "^2.4.1",
+        "range-parser": "^1.2.1",
+        "statuses": "^2.0.2"
+      },
+      "engines": {
+        "node": ">= 18"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/serve-static": {
+      "version": "2.2.1",
+      "resolved": "https://registry.npmjs.org/serve-static/-/serve-static-2.2.1.tgz",
+      "integrity": "sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==",
+      "license": "MIT",
+      "dependencies": {
+        "encodeurl": "^2.0.0",
+        "escape-html": "^1.0.3",
+        "parseurl": "^1.3.3",
+        "send": "^1.2.0"
+      },
+      "engines": {
+        "node": ">= 18"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/setprototypeof": {
+      "version": "1.2.0",
+      "resolved": "https://registry.npmjs.org/setprototypeof/-/setprototypeof-1.2.0.tgz",
+      "integrity": "sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==",
+      "license": "ISC"
+    },
+    "node_modules/side-channel": {
+      "version": "1.1.1",
+      "resolved": "https://registry.npmjs.org/side-channel/-/side-channel-1.1.1.tgz",
+      "integrity": "sha512-6x6dK6zJdpTzF4sQeNYxwtvBzf6Eg4GtlesS94HOvTudUeyK2WXAaIfmDgsyslYrRBeFIlsi54AYsFGUuhmvrQ==",
+      "license": "MIT",
+      "dependencies": {
+        "es-errors": "^1.3.0",
+        "object-inspect": "^1.13.4",
+        "side-channel-list": "^1.0.1",
+        "side-channel-map": "^1.0.1",
+        "side-channel-weakmap": "^1.0.2"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/side-channel-list": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/side-channel-list/-/side-channel-list-1.0.1.tgz",
+      "integrity": "sha512-mjn/0bi/oUURjc5Xl7IaWi/OJJJumuoJFQJfDDyO46+hBWsfaVM65TBHq2eoZBhzl9EchxOijpkbRC8SVBQU0w==",
+      "license": "MIT",
+      "dependencies": {
+        "es-errors": "^1.3.0",
+        "object-inspect": "^1.13.4"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/side-channel-map": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/side-channel-map/-/side-channel-map-1.0.1.tgz",
+      "integrity": "sha512-VCjCNfgMsby3tTdo02nbjtM/ewra6jPHmpThenkTYh8pG9ucZ/1P8So4u4FGBek/BjpOVsDCMoLA/iuBKIFXRA==",
+      "license": "MIT",
+      "dependencies": {
+        "call-bound": "^1.0.2",
+        "es-errors": "^1.3.0",
+        "get-intrinsic": "^1.2.5",
+        "object-inspect": "^1.13.3"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/side-channel-weakmap": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/side-channel-weakmap/-/side-channel-weakmap-1.0.2.tgz",
+      "integrity": "sha512-WPS/HvHQTYnHisLo9McqBHOJk2FkHO/tlpvldyrnem4aeQp4hai3gythswg6p01oSoTl58rcpiFAjF2br2Ak2A==",
+      "license": "MIT",
+      "dependencies": {
+        "call-bound": "^1.0.2",
+        "es-errors": "^1.3.0",
+        "get-intrinsic": "^1.2.5",
+        "object-inspect": "^1.13.3",
+        "side-channel-map": "^1.0.1"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/simple-update-notifier": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/simple-update-notifier/-/simple-update-notifier-2.0.0.tgz",
+      "integrity": "sha512-a2B9Y0KlNXl9u/vsW6sTIu9vGEpfKu2wRV6l1H3XEas/0gUIzGzBoP/IouTcUQbm9JWZLH3COxyn03TYlFax6w==",
+      "license": "MIT",
+      "dependencies": {
+        "semver": "^7.5.3"
+      },
+      "engines": {
+        "node": ">=10"
+      }
+    },
+    "node_modules/statuses": {
+      "version": "2.0.2",
+      "resolved": "https://registry.npmjs.org/statuses/-/statuses-2.0.2.tgz",
+      "integrity": "sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/supports-color": {
+      "version": "5.5.0",
+      "resolved": "https://registry.npmjs.org/supports-color/-/supports-color-5.5.0.tgz",
+      "integrity": "sha512-QjVjwdXIt408MIiAqCX4oUKsgU2EqAGzs2Ppkm4aQYbjm+ZEWEcW4SfFNTr4uMNZma0ey4f5lgLrkB0aX0QMow==",
+      "license": "MIT",
+      "dependencies": {
+        "has-flag": "^3.0.0"
+      },
+      "engines": {
+        "node": ">=4"
+      }
+    },
+    "node_modules/to-regex-range": {
+      "version": "5.0.1",
+      "resolved": "https://registry.npmjs.org/to-regex-range/-/to-regex-range-5.0.1.tgz",
+      "integrity": "sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==",
+      "license": "MIT",
+      "dependencies": {
+        "is-number": "^7.0.0"
+      },
+      "engines": {
+        "node": ">=8.0"
+      }
+    },
+    "node_modules/toidentifier": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/toidentifier/-/toidentifier-1.0.1.tgz",
+      "integrity": "sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.6"
+      }
+    },
+    "node_modules/touch": {
+      "version": "3.1.1",
+      "resolved": "https://registry.npmjs.org/touch/-/touch-3.1.1.tgz",
+      "integrity": "sha512-r0eojU4bI8MnHr8c5bNo7lJDdI2qXlWWJk6a9EAFG7vbhTjElYhBVS3/miuE0uOuoLdb8Mc/rVfsmm6eo5o9GA==",
+      "license": "ISC",
+      "bin": {
+        "nodetouch": "bin/nodetouch.js"
+      }
+    },
+    "node_modules/ts-mixer": {
+      "version": "6.0.4",
+      "resolved": "https://registry.npmjs.org/ts-mixer/-/ts-mixer-6.0.4.tgz",
+      "integrity": "sha512-ufKpbmrugz5Aou4wcr5Wc1UUFWOLhq+Fm6qa6P0w0K5Qw2yhaUoiWszhCVuNQyNwrlGiscHOmqYoAox1PtvgjA==",
+      "license": "MIT"
+    },
+    "node_modules/tslib": {
+      "version": "2.8.1",
+      "resolved": "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz",
+      "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==",
+      "license": "0BSD"
+    },
+    "node_modules/type-is": {
+      "version": "2.1.0",
+      "resolved": "https://registry.npmjs.org/type-is/-/type-is-2.1.0.tgz",
+      "integrity": "sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==",
+      "license": "MIT",
+      "dependencies": {
+        "content-type": "^2.0.0",
+        "media-typer": "^1.1.0",
+        "mime-types": "^3.0.0"
+      },
+      "engines": {
+        "node": ">= 18"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/express"
+      }
+    },
+    "node_modules/typed-emitter": {
+      "version": "0.1.0",
+      "resolved": "https://registry.npmjs.org/typed-emitter/-/typed-emitter-0.1.0.tgz",
+      "integrity": "sha512-Tfay0l6gJMP5rkil8CzGbLthukn+9BN/VXWcABVFPjOoelJ+koW8BuPZYk+h/L+lEeIp1fSzVRiWRPIjKVjPdg==",
+      "license": "MIT"
+    },
+    "node_modules/undefsafe": {
+      "version": "2.0.5",
+      "resolved": "https://registry.npmjs.org/undefsafe/-/undefsafe-2.0.5.tgz",
+      "integrity": "sha512-WxONCrssBM8TSPRqN5EmsjVrsv4A8X12J4ArBiiayv3DyyG3ZlIg6yysuuSYdZsVz3TKcTg2fd//Ujd4CHV1iA==",
+      "license": "MIT"
+    },
+    "node_modules/undici": {
+      "version": "6.29.1",
+      "resolved": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
+      "integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=18.17"
+      }
+    },
+    "node_modules/undici-types": {
+      "version": "8.9.0",
+      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-8.9.0.tgz",
+      "integrity": "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==",
+      "license": "MIT"
+    },
+    "node_modules/unpipe": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/unpipe/-/unpipe-1.0.0.tgz",
+      "integrity": "sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/vary": {
+      "version": "1.1.2",
+      "resolved": "https://registry.npmjs.org/vary/-/vary-1.1.2.tgz",
+      "integrity": "sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
+    "node_modules/wrappy": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/wrappy/-/wrappy-1.0.2.tgz",
+      "integrity": "sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==",
+      "license": "ISC"
+    },
+    "node_modules/ws": {
+      "version": "8.22.0",
+      "resolved": "https://registry.npmjs.org/ws/-/ws-8.22.0.tgz",
+      "integrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=10.0.0"
+      },
+      "peerDependencies": {
+        "bufferutil": "^4.0.1",
+        "utf-8-validate": ">=5.0.2"
+      },
+      "peerDependenciesMeta": {
+        "bufferutil": {
+          "optional": true
+        },
+        "utf-8-validate": {
+          "optional": true
+        }
+      }
+    }
+  }
+}
+
+```
+`package.json`:
+
+```json
+{
+  "name": "unlp-craft-dsbot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "keywords": [],
+  "nodemonConfig": {
+    "ignore": [
+      "*.json",
+      "data/*",
+      "src/data/*"
+    ]
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "nodemon": "^3.1.14",
+    "rcon-client": "^4.2.5"
+  }
+}
+
+```
+`src\commands\link.js`:
+
+```js
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const accountLinks = require('../services/accountLinksStore');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('link')
+    .setDescription('Genera un código para vincular o actualizar tu cuenta de Minecraft'),
+  async execute(interaction) {
+    if (!interaction.inGuild() || interaction.guildId !== process.env.GUILD_ID) {
+      await interaction.reply({
+        content: 'Usá este comando en el servidor oficial.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    await interaction.guild.members.fetch(interaction.user.id);
+    const { code, expiresAt } = accountLinks.createCode(interaction.user.id);
+    const expiresInMinutes = Math.ceil((expiresAt - Date.now()) / 60_000);
+    await interaction.reply({
+      content: `En Minecraft ejecutá \`/discord link ${code}\`. El código vence en ${expiresInMinutes} minutos y solo se puede usar una vez. Podés repetir este proceso más adelante para actualizar tus roles. No lo compartas.`,
+      flags: MessageFlags.Ephemeral,
+    });
+  },
+};
+
+```
+`src\commands\reclamarBoost.js`:
+
+```js
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { claimBoost } = require('../services/boosts');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('reclamar-boost')
+    .setDescription('Reclamá tu recompensa por boostear el server')
+    .addStringOption((o) =>
+      o.setName('nick').setDescription('Tu nickname de Minecraft')
+        .setRequired(true).setMinLength(3).setMaxLength(16)),
+  async execute(interaction) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    if (!interaction.inGuild()) {
+      await interaction.editReply('Este comando solo se puede usar en el servidor.');
+      return;
+    }
+
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const res = await claimBoost(member, interaction.options.getString('nick', true));
+    await interaction.editReply(res.msg);
+  },
+};
+```
+`src\config\boosts.js`:
+
+```js
+module.exports = {
+  1: { money: 100000, rank: 'diamante', minecraftGroup: 'diamante', days: 30, tagPermission: 'supremetags.tag.booster' },
+  2: { money: 200000, rank: 'diamante', minecraftGroup: 'diamante', days: 30, tagPermission: 'supremetags.tag.booster' },
+};
+```
+`src\config\luckperms-role-map.json`:
+
+```json
+{
+  "oro": "1403748269749960724",
+  "diamante": "1404521930526298225",
+  "netherite": "1493071176237449449",
+  "netherite+": "1539732504955719871",
+  "fac_arquitectura": "1408539163376226455",
+  "fac_agrarias": "1408550650429833357",
+  "fac_economicas": "1408540525769916476",
+  "fac_exactas": "1408539371128229958",
+  "fac_humanidades": "1408551153268166817",
+  "fac_informatica": "1408551348047319100",
+  "fac_ingenieria": "1408539629724111000",
+  "fac_juridicas": "1408550888926085241",
+  "fac_medicas": "1408539262210543616",
+  "fac_artes": "1408539484559114290",
+  "fac_naturales": "1408548370632544286",
+  "fac_astronomicas": "1408550824447316068",
+  "fac_odontologia": "1408551199002857533",
+  "fac_laburante": "1491848925500412085",
+  "fac_periodismo": "1408551455136153713",
+  "fac_psicologia": "1408551444084166806",
+  "fac_veterinarias": "1408551064302653532",
+  "fac_trabajosocial": "1408551608257876069"
+}
+
+```
+`src\config\ranks.js`:
+
+```js
+const { loadRoleMap } = require('../services/luckpermsRoleMap');
+const roleMap = loadRoleMap();
+
+function requiredRole(group) {
+  const roleId = roleMap[group];
+  if (!roleId) {
+    throw new Error(`Falta configurar un ID de rol válido para "${group}" en src/config/luckperms-role-map.json.`);
+  }
+  return roleId;
+}
+
+module.exports = {
+  oro: {
+    title: 'Rango Oro',
+    price: 5000,
+    discordRoleId: requiredRole('oro'),
+  },
+  diamante: {
+    title: 'Rango Diamante',
+    price: 10000,
+    discordRoleId: requiredRole('diamante'),
+  },
+  netherite: {
+    title: 'Rango Netherite',
+    price: 20000,
+    discordRoleId: requiredRole('netherite'),
+  },
+  netheriteplus: {
+    title: 'Rango Netherite+',
+    price: 125000,
+    discordRoleId: requiredRole('netherite+'),
+    requiresRank: 'netherite', // Requisito previo
+    durationDays: 30,          // Duración temporal
+  },
+};
+```
+`src\events\interactionCreate.js`:
+
+```js
+const { MessageFlags } = require('discord.js');
+const reclamarBoost = require('../commands/reclamarBoost');
+const link = require('../commands/link');
+
+const commands = new Map([
+  [reclamarBoost.data.name, reclamarBoost],
+  [link.data.name, link],
+]);
+
+module.exports = {
+  name: 'interactionCreate',
+  async execute(interaction) {
+    if (!interaction.isChatInputCommand()) return;
+    const cmd = commands.get(interaction.commandName);
+    if (!cmd) return;
+    try {
+      await cmd.execute(interaction);
+    } catch (e) {
+      console.error(e);
+      const msg = 'Ocurrió un error.';
+      if (interaction.deferred || interaction.replied) await interaction.editReply(msg).catch(() => {});
+      else await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
+  },
+};
+```
+`src\events\messageCreate.js`:
+
+```js
+const { MessageType } = require('discord.js');
+const { registerBoost } = require('../services/boostTracking');
+
+const BOOST_TYPES = new Set([
+  MessageType.GuildBoost,
+  MessageType.GuildBoostTier1,
+  MessageType.GuildBoostTier2,
+  MessageType.GuildBoostTier3,
+]);
+
+module.exports = {
+  name: 'messageCreate',
+  execute(message, client) {
+    if (!BOOST_TYPES.has(message.type)) return;
+    try {
+      registerBoost(message, client);
+    } catch (error) {
+      console.error('No se pudo registrar el boost:', error.message);
+    }
+  },
+};
+```
+`src\events\ready.js`:
+
+```js
+const { startExpiryJob } = require('../services/boosts');
+const { resumeBoostTracking } = require('../services/boostTracking');
+const reclamarBoost = require('../commands/reclamarBoost');
+const link = require('../commands/link');
+
+module.exports = {
+  name: 'clientReady',
+  once: true,
+  async execute(client) {
+    console.log(`✅ Bot conectado como ${client.user.tag}`);
+    try {
+      const guild = await client.guilds.fetch(process.env.GUILD_ID);
+      await guild.commands.set([reclamarBoost.data.toJSON(), link.data.toJSON()]);
+      console.log('Slash commands registrados');
+    } catch (e) {
+      console.error('No se pudieron registrar los comandos:', e);
+    }
+    startExpiryJob(client);
+    resumeBoostTracking(client);
+  },
+};
+```
+`src\handlers\loadEvents.js`:
+
+```js
+const fs = require('fs');
+const path = require('path');
+
+module.exports = (client) => {
+  const dir = path.join(__dirname, '../events');
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.js'))) {
+    const event = require(path.join(dir, file));
+    const run = (...args) => event.execute(...args, client);
+    event.once ? client.once(event.name, run) : client.on(event.name, run);
+  }
+};
+```
+`src\index.js`:
+
+```js
+require('dotenv').config();
+const { Client, GatewayIntentBits } = require('discord.js');
+const loadEvents = require('./handlers/loadEvents');
+const express = require('express');
+
+const app = express();
+app.use(express.json({ limit: '8kb', type: 'application/json' }));
+
+const port = Number(process.env.PORT || 3000);
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new Error('PORT debe ser un número entero entre 1 y 65535.');
+}
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+  ],
+});
+
+require('./routes/dev')(app, client);
+require('./routes/minecraftLink')(app, client);
+
+loadEvents(client);
+client.login(process.env.DISCORD_TOKEN);
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Servidor HTTP escuchando en 0.0.0.0:${port}`);
+});
+```
+`src\routes\dev.js`:
+
+```js
+const { MessageType } = require('discord.js');
+const { db } = require('../services/store');
+
+const SETTLEMENT_TIMEOUT_MS = 30 * 1000;
+
+// Herramienta SOLO para pruebas locales: simula el mensaje de sistema que Discord
+// publica cuando alguien boostea el server. Queda desactivada salvo que exista
+// DEV_TOOLS_KEY y nunca se registra con NODE_ENV=production.
+module.exports = (app, client) => {
+  const key = process.env.DEV_TOOLS_KEY;
+  if (!key || process.env.NODE_ENV === 'production') return;
+
+  app.post('/dev/fake-boost', async (req, res) => {
+    if (req.get('x-dev-key') !== key) return res.sendStatus(403);
+
+    const userId = String(req.query.userId || '');
+    if (!/^\d{15,25}$/.test(userId)) return res.status(400).send('userId inválido');
+    const count = Number(req.query.count || 1);
+    if (!Number.isInteger(count) || count < 1 || count > 2) {
+      return res.status(400).send('count debe ser 1 o 2');
+    }
+    const mode = req.query.mode === 'single' ? 'single' : 'multi';
+    const existingClaims = db.pending?.[userId] || [];
+    if (existingClaims.length > 0) {
+      const existingBoosts = existingClaims.reduce((total, claim) => total + claim.boosts, 0);
+      return res.status(409).send(
+        `Ya hay ${existingClaims.length} recompensa(s) pendiente(s), por ${existingBoosts} boost(s), para Discord ${userId}. No se creó otra para evitar duplicarla.`,
+      );
+    }
+    if (db.boostEvents?.[userId]) {
+      return res.status(409).send('Ya hay boosts agrupándose para ese usuario; esperá a que se asienten y volvé a probar.');
+    }
+
+    // El agradecimiento que el bot publicaría en el canal se muestra en consola
+    const channel = {
+      send: async (text) => console.log('[fake-boost] mensaje al canal:', text),
+    };
+
+    // Cada mensaje simulado tiene su propio id y fecha, como los reales de Discord.
+    // Sin esto, el segundo boost parece un duplicado del primero y se descarta.
+    let sequence = 0;
+    const fake = (content) => {
+      const now = Date.now();
+      return {
+        id: `${now}${String(++sequence).padStart(3, '0')}${Math.floor(Math.random() * 1000)}`,
+        createdTimestamp: now,
+        createdAt: new Date(now),
+        type: MessageType.GuildBoost,
+        system: true,
+        author: { id: userId, bot: false },
+        content,
+        channel,
+        guild: { id: process.env.GUILD_ID },
+      };
+    };
+
+    if (mode === 'single') {
+      // Un solo mensaje con el número de boosts en el contenido
+      client.emit('messageCreate', fake(count > 1 ? String(count) : ''));
+    } else {
+      // Un mensaje por cada boost
+      for (let i = 0; i < count; i++) client.emit('messageCreate', fake(''));
+    }
+
+    const deadline = Date.now() + SETTLEMENT_TIMEOUT_MS;
+    let claim;
+    while (Date.now() < deadline) {
+      claim = (db.pending?.[userId] || [])[0];
+      if (claim) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    if (!claim) {
+      return res.status(504).send(
+        `Se simularon ${count} boost(s), pero el bot no creó una recompensa pendiente en ${SETTLEMENT_TIMEOUT_MS / 1000} segundos. Revisá los logs de Boost detectado y el asentamiento.`,
+      );
+    }
+    if (claim.boosts !== count) {
+      return res.status(500).send(
+        `La recompensa quedó pendiente con ${claim.boosts} boost(s), pero se habían simulado ${count}. Revisá el estado antes de reclamar.`,
+      );
+    }
+
+    console.log(`[fake-boost] ${count} boost(s) simulados para ${userId} (modo ${mode})`);
+    res.send(`OK: recompensa de ${count} boost(s) asentada para Discord ${userId}; ya podés reclamarla.`);
+  });
+};
+```
+`src\routes\minecraftLink.js`:
+
+```js
+const crypto = require('crypto');
+const { AccountLinkError } = require('../services/accountLinks');
+const accountLinks = require('../services/accountLinksStore');
+const { loadRoleMap } = require('../services/luckpermsRoleMap');
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const GROUP_PATTERN = /^[A-Za-z0-9_.+-]{1,64}$/;
+
+module.exports = (app, client, links = accountLinks, getRoleMap = loadRoleMap) => {
+  app.post('/api/minecraft/link', async (req, res) => {
+    const expectedKey = process.env.MINECRAFT_LINK_API_KEY;
+    if (!expectedKey || !process.env.GUILD_ID) {
+      return res.status(503).json({ error: 'Minecraft link endpoint is not configured.' });
+    }
+    if (!safeEqual(expectedKey, req.get('x-api-key') || '')) {
+      return res.status(401).json({ error: 'Invalid API key.' });
+    }
+
+    const { code, player, groups } = req.body || {};
+    if (
+      typeof code !== 'string'
+      || !/^[a-f0-9]{48}$/i.test(code)
+      || !player
+      || typeof player !== 'object'
+      || typeof player.uuid !== 'string'
+      || !UUID_PATTERN.test(player.uuid)
+      || typeof player.name !== 'string'
+      || !/^[A-Za-z0-9_]{3,16}$/.test(player.name)
+      || !Array.isArray(groups)
+      || groups.length > 100
+      || groups.some((group) => typeof group !== 'string' || !GROUP_PATTERN.test(group))
+    ) {
+      return res.status(400).json({ error: 'Invalid link request.' });
+    }
+
+    let roleMap;
+    try {
+      roleMap = getRoleMap();
+    } catch (error) {
+      console.error('Minecraft link role mapping is invalid:', error.message);
+      return res.status(503).json({ error: 'Minecraft role mapping is not configured correctly.' });
+    }
+    if (Object.keys(roleMap).length === 0) {
+      return res.status(503).json({ error: 'Minecraft role mapping is not configured.' });
+    }
+
+    let link;
+    try {
+      link = links.linkPlayer({
+        code,
+        uuid: player.uuid.toLowerCase(),
+        playerName: player.name,
+        groups: [...new Set(groups)],
+      });
+    } catch (error) {
+      if (error instanceof AccountLinkError && error.code === 'INVALID_CODE') {
+        return res.status(400).json({ error: 'The link code is invalid or expired.' });
+      }
+      if (error instanceof AccountLinkError && error.code === 'CONFLICT') {
+        return res.status(409).json({ error: error.message });
+      }
+      console.error('Could not persist Minecraft account link:', error.message);
+      return res.status(500).json({ error: 'Could not save the account link.' });
+    }
+
+    try {
+      const guild = await client.guilds.fetch(process.env.GUILD_ID);
+      const member = await guild.members.fetch(link.discordUserId);
+      const targetRoleIds = [...new Set(
+        link.groups
+          .filter((group) => Object.hasOwn(roleMap, group))
+          .map((group) => roleMap[group]),
+      )];
+      const previousRoleIds = link.managedRoleIds || [];
+      const managedRoleIds = targetRoleIds.filter(
+        (roleId) => previousRoleIds.includes(roleId) || !member.roles.cache.has(roleId),
+      );
+
+      for (const roleId of targetRoleIds) {
+        if (!member.roles.cache.has(roleId)) await member.roles.add(roleId);
+      }
+      for (const roleId of previousRoleIds) {
+        if (!targetRoleIds.includes(roleId) && member.roles.cache.has(roleId)) {
+          await member.roles.remove(roleId);
+        }
+      }
+
+      links.updateManagedRoles(player.uuid.toLowerCase(), managedRoleIds);
+      return res.status(200).json({
+        ok: true,
+        linked: true,
+        synchronizedRoles: targetRoleIds.length,
+      });
+    } catch (error) {
+      console.error('Minecraft link saved, but Discord role synchronization failed:', error.message);
+      return res.status(503).json({ error: 'Account link saved, but Discord roles could not be synchronized. Retry the request.' });
+    }
+  });
+};
+
+function safeEqual(expected, presented) {
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const presentedBuffer = Buffer.from(presented, 'utf8');
+  return expectedBuffer.length === presentedBuffer.length
+    && crypto.timingSafeEqual(expectedBuffer, presentedBuffer);
+}
+
+```
+`src\services\accountLinks.js`:
+
+```js
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const DEFAULT_FILE = path.join(__dirname, '../../data/account-links.json');
+const CODE_TTL_MS = 5 * 60 * 1000;
+
+class AccountLinkError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'AccountLinkError';
+    this.code = code;
+  }
+}
+
+class AccountLinkStore {
+  constructor(file = DEFAULT_FILE) {
+    this.file = file;
+    this.data = { pendingCodes: {}, linksByUuid: {} };
+
+    try {
+      this.data = { ...this.data, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+
+  createCode(discordUserId, now = Date.now()) {
+    this.cleanupExpiredCodes(now);
+
+    for (const [hash, pending] of Object.entries(this.data.pendingCodes)) {
+      if (pending.discordUserId === discordUserId) delete this.data.pendingCodes[hash];
+    }
+
+    const code = crypto.randomBytes(24).toString('hex');
+    const codeHash = hashCode(code);
+    this.data.pendingCodes[codeHash] = {
+      discordUserId,
+      expiresAt: now + CODE_TTL_MS,
+    };
+    this.save();
+    return { code, expiresAt: now + CODE_TTL_MS };
+  }
+
+  linkPlayer({ code, uuid, playerName, groups }, now = Date.now()) {
+    this.cleanupExpiredCodes(now);
+    const codeHash = hashCode(code);
+    const existing = this.data.linksByUuid[uuid];
+    let discordUserId;
+
+    if (existing?.lastCodeHash === codeHash) {
+      discordUserId = existing.discordUserId;
+    } else {
+      const pending = this.data.pendingCodes[codeHash];
+      if (!pending || pending.expiresAt <= now) {
+        throw new AccountLinkError('INVALID_CODE', 'El código no existe o venció.');
+      }
+
+      discordUserId = pending.discordUserId;
+      const discordLink = Object.entries(this.data.linksByUuid)
+        .find(([linkedUuid, link]) => link.discordUserId === discordUserId && linkedUuid !== uuid);
+      if (discordLink) {
+        throw new AccountLinkError('CONFLICT', 'La cuenta de Discord ya está vinculada a otro jugador.');
+      }
+      if (existing && existing.discordUserId !== discordUserId) {
+        throw new AccountLinkError('CONFLICT', 'Este jugador ya está vinculado a otra cuenta de Discord.');
+      }
+      delete this.data.pendingCodes[codeHash];
+    }
+
+    const link = {
+      discordUserId,
+      playerName,
+      groups,
+      managedRoleIds: existing?.managedRoleIds || [],
+      lastCodeHash: codeHash,
+      linkedAt: existing?.linkedAt || now,
+      updatedAt: now,
+    };
+    this.data.linksByUuid[uuid] = link;
+    this.save();
+    return { uuid, ...link };
+  }
+
+  updateManagedRoles(uuid, roleIds) {
+    const link = this.data.linksByUuid[uuid];
+    if (!link) throw new AccountLinkError('NOT_LINKED', 'El jugador no está vinculado.');
+    link.managedRoleIds = [...new Set(roleIds)];
+    link.updatedAt = Date.now();
+    this.save();
+  }
+
+  cleanupExpiredCodes(now = Date.now()) {
+    let changed = false;
+    for (const [hash, pending] of Object.entries(this.data.pendingCodes)) {
+      if (pending.expiresAt <= now) {
+        delete this.data.pendingCodes[hash];
+        changed = true;
+      }
+    }
+    if (changed) this.save();
+  }
+
+  save() {
+    fs.mkdirSync(path.dirname(this.file), { recursive: true });
+    const temporaryFile = `${this.file}.tmp`;
+    fs.writeFileSync(temporaryFile, JSON.stringify(this.data, null, 2));
+    fs.renameSync(temporaryFile, this.file);
+  }
+}
+
+function hashCode(code) {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
+
+module.exports = { AccountLinkError, AccountLinkStore, CODE_TTL_MS };
+
+```
+`src\services\accountLinksStore.js`:
+
+```js
+const { AccountLinkStore } = require('./accountLinks');
+
+module.exports = new AccountLinkStore();
+
+```
+`src\services\boostQueue.js`:
+
+```js
+function recordBoost(db, userId, count, channelId, settleAt) {
+  db.boostEvents ||= {};
+  const current = db.boostEvents[userId] || { count: 0 };
+  const event = {
+    count: current.count + count,
+    channelId,
+    settleAt,
+  };
+  db.boostEvents[userId] = event;
+  return event;
+}
+
+function settleBoost(db, userId, now, claimId) {
+  const event = db.boostEvents?.[userId];
+  if (!event || event.settleAt > now) return null;
+
+  delete db.boostEvents[userId];
+  db.pending[userId] ||= [];
+  const claim = {
+    id: claimId,
+    boosts: Math.min(event.count, 2),
+    createdAt: now,
+  };
+  db.pending[userId].push(claim);
+  return { claim, channelId: event.channelId };
+}
+
+module.exports = { recordBoost, settleBoost };
+
+```
+`src\services\boostTracking.js`:
+
+```js
+const { db, save } = require('./store');
+const { recordBoost } = require('./boostQueue');
+const { settlePendingBoost } = require('./boosts');
+
+const WINDOW_MS = 20 * 1000;
+const timers = new Map();
+
+db.boostEvents ||= {};
+
+function scheduleSettlement(userId, client) {
+  clearTimeout(timers.get(userId));
+  const event = db.boostEvents[userId];
+  if (!event) {
+    timers.delete(userId);
+    return;
+  }
+
+  const delay = Math.max(0, event.settleAt - Date.now());
+  const timer = setTimeout(async () => {
+    timers.delete(userId);
+    try {
+      await settlePendingBoost(userId, client);
+      scheduleSettlement(userId, client);
+    } catch (error) {
+      console.error('No se pudo asentar el boost; se reintentará:', error.message);
+      scheduleSettlement(userId, client);
+    }
+  }, delay);
+  timers.set(userId, timer);
+}
+
+function registerBoost(message, client) {
+  const userId = message.author.id;
+  const count = Number(message.content) > 0 ? Number(message.content) : 1;
+  recordBoost(db, userId, count, message.channelId, Date.now() + WINDOW_MS);
+  save();
+  scheduleSettlement(userId, client);
+  console.log('Boost detectado:', userId, 'content:', JSON.stringify(message.content));
+}
+
+function resumeBoostTracking(client) {
+  for (const userId of Object.keys(db.boostEvents)) {
+    scheduleSettlement(userId, client);
+  }
+}
+
+module.exports = { registerBoost, resumeBoostTracking };
+
+```
+`src\services\boosts.js`:
+
+```js
+const crypto = require('crypto');
+const mc = require('./minecraft');
+const RANKS = require('../config/ranks');
+const REWARDS = require('../config/boosts');
+const { db, save } = require('./store');
+const { settleBoost } = require('./boostQueue');
+const { deliverOnce } = require('./onceOnlyDelivery');
+const { getGrantExpiration, getLatestExpiration, grantRole, reconcileExpiredRoles } = require('./roleEntitlements');
+
+const DAY = 24 * 60 * 60 * 1000;
+const NICK_RE = /^[A-Za-z0-9_]{3,16}$/;
+const busy = new Set();
+
+db.pending ||= {};
+db.boostEvents ||= {};
+
+async function settlePendingBoost(userId, client) {
+    const previousEvent = db.boostEvents[userId] && { ...db.boostEvents[userId] };
+    const settled = settleBoost(db, userId, Date.now(), crypto.randomUUID());
+    if (!settled) return false;
+    try {
+        save();
+    } catch (error) {
+        db.boostEvents[userId] = previousEvent;
+        db.pending[userId] = db.pending[userId].filter((claim) => claim.id !== settled.claim.id);
+        if (db.pending[userId].length === 0) delete db.pending[userId];
+        throw error;
+    }
+
+    if (settled.channelId) {
+        try {
+            const channel = await client.channels.fetch(settled.channelId);
+            await channel.send(`¡Gracias por el boost, <@${userId}>! Usá \`/reclamar-boost\` con tu nick de Minecraft para recibir tu recompensa.`);
+        } catch (error) {
+            console.error('No se pudo notificar el boost asentado:', error.message);
+        }
+    }
+    return true;
+}
+
+async function claimBoost(member, nick) {
+    if (!NICK_RE.test(nick)) return { msg: 'Nickname inválido.' };
+    const claim = (db.pending[member.id] || [])[0];
+    if (!claim) return { msg: 'No tenés recompensas de boost pendientes.' };
+    if (busy.has(member.id)) return { msg: 'Tu reclamo ya se está procesando.' };
+
+    const reward = REWARDS[claim.boosts];
+    if (!reward) throw new Error(`No hay recompensa configurada para ${claim.boosts} boost(s).`);
+    const rank = RANKS[reward.rank];
+    if (!rank) throw new Error(`El rango de booster "${reward.rank}" no está configurado.`);
+    busy.add(member.id);
+    try {
+        if (claim.minecraftNick && claim.minecraftNick !== nick) {
+            return { msg: `Este reclamo ya está asociado al nick ${claim.minecraftNick}. Usá ese mismo nick para continuar.` };
+        }
+        claim.minecraftNick ||= nick;
+        claim.id ||= crypto.randomUUID();
+        if (claim.moneyGiven && !claim.moneyDelivery) claim.moneyDelivery = 'done';
+        if (claim.rankGiven && !claim.rankDelivery) claim.rankDelivery = 'done';
+        if (claim.tagGiven && !claim.tagDelivery) claim.tagDelivery = 'done';
+        save();
+
+        try {
+            await deliverOnce(
+                claim,
+                'moneyDelivery',
+                `eco give ${claim.minecraftNick} ${reward.money}`,
+                (command) => mc.run(command, 0),
+                save,
+            );
+            await deliverOnce(
+                claim,
+                'rankDelivery',
+                `lp user ${claim.minecraftNick} parent addtemp ${reward.minecraftGroup} ${reward.days}d accumulate`,
+                (command) => mc.run(command, 0),
+                save,
+            );
+            if (reward.tagPermission) {
+                await deliverOnce(
+                    claim,
+                    'tagDelivery',
+                    `lp user ${claim.minecraftNick} permission settemp ${reward.tagPermission} true ${reward.days}d accumulate`,
+                    (command) => mc.run(command, 0),
+                    save,
+                );
+            }
+        } catch (error) {
+            if (error.manualReview) {
+                console.error('Entrega de recompensa en revisión manual:', error.cause?.message || error.message);
+                return {
+                    msg: `La entrega de ${rank.title} requiere revisión manual. No vuelvas a reclamarla hasta verificar el estado en Minecraft.`,
+                };
+            }
+            throw error;
+        }
+
+        const grantId = `booster:${claim.id}`;
+        const existingExpiration = getGrantExpiration(member.id, rank.discordRoleId, grantId);
+        const expiresAt = existingExpiration
+            ?? Math.max(Date.now(), getLatestExpiration(member.id, rank.discordRoleId, 'booster')) + reward.days * DAY;
+        await grantRole(member, {
+            userId: member.id,
+            roleId: rank.discordRoleId,
+            grantId,
+            source: 'booster',
+            expiresAt,
+        });
+
+        db.pending[member.id].shift();
+        save();
+    } catch (e) {
+        console.error(e);
+        return { msg: 'No se pudo entregar ahora, probá de nuevo en un rato.' };
+    } finally {
+        busy.delete(member.id);
+    }
+
+    return {
+        msg: `¡Listo! Recibiste $${reward.money.toLocaleString('es-AR')} y el rango ${rank.title} por ${reward.days} días en ${nick}.`,
+    };
+}
+
+function startExpiryJob(client) {
+    let running = false;
+    const tick = async () => {
+        if (running) return;
+        running = true;
+        try {
+            await reconcileExpiredRoles(client);
+        } catch (error) {
+            console.error('[Expiración] No se pudieron revisar los roles:', error.message);
+        } finally {
+            running = false;
+        }
+    };
+    void tick();
+    setInterval(() => void tick(), 10 * 60 * 1000);
+}
+
+module.exports = { claimBoost, settlePendingBoost, startExpiryJob };
+```
+`src\services\luckpermsRoleMap.js`:
+
+```js
+const fs = require('fs');
+const path = require('path');
+
+const DEFAULT_FILE = path.join(__dirname, '../config/luckperms-role-map.json');
+const GROUP_PATTERN = /^[A-Za-z0-9_.+-]{1,64}$/;
+
+function loadRoleMap(file = DEFAULT_FILE) {
+  const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Expected a JSON object mapping LuckPerms groups to Discord role IDs.');
+  }
+  for (const [group, roleId] of Object.entries(parsed)) {
+    if (
+      !GROUP_PATTERN.test(group)
+      || typeof roleId !== 'string'
+      || !/^\d{15,25}$/.test(roleId)
+    ) {
+      throw new Error(`Invalid Discord role mapping for LuckPerms group "${group}".`);
+    }
+  }
+  return parsed;
+}
+
+module.exports = { loadRoleMap };
+
+```
+`src\services\minecraft.js`:
+
+```js
+const { Rcon } = require('rcon-client');
+
+let chain = Promise.resolve();
+
+async function send(cmd) {
+  const rcon = await Rcon.connect({
+    host: process.env.RCON_HOST,
+    port: Number(process.env.RCON_PORT),
+    password: process.env.RCON_PASSWORD,
+    timeout: 10000,
+  });
+  try {
+    return await rcon.send(cmd);
+  } finally {
+    rcon.end();
+  }
+}
+
+// Los comandos salen de a uno, con hasta 2 reintentos
+function run(cmd, retries = 2) {
+  const task = chain.then(async () => {
+    for (let i = 0; ; i++) {
+      try {
+        return await send(cmd);
+      } catch (e) {
+        if (i >= retries) throw e;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+  });
+  chain = task.catch(() => {});
+  return task;
+}
+
+module.exports = { run };
+```
+`src\services\onceOnlyDelivery.js`:
+
+```js
+async function deliverOnce(record, statusKey, command, send, save) {
+  const status = record[statusKey];
+  if (status === 'done') return;
+  if (status) {
+    const error = new Error('Esta entrega requiere revisión manual para evitar duplicarla.');
+    error.manualReview = true;
+    throw error;
+  }
+
+  record[statusKey] = 'processing';
+  save();
+
+  try {
+    await send(command);
+  } catch (cause) {
+    record[statusKey] = 'manual_review';
+    save();
+    const error = new Error('RCON no confirmó la entrega. Revisá el estado en Minecraft antes de modificarla.');
+    error.manualReview = true;
+    error.cause = cause;
+    throw error;
+  }
+
+  record[statusKey] = 'done';
+  save();
+}
+
+module.exports = { deliverOnce };
+
+```
+`src\services\roleEntitlements.js`:
+
+```js
+const { db, save } = require('./store');
+const {
+  addGrant,
+  deleteRoleGrants,
+  ensureLedger,
+  getGrant,
+  getGrants,
+  hasActiveGrant,
+  latestExpiry,
+  pruneExpiredGrants,
+  supersedeNonBoosterGrants,
+} = require('./roleLedger');
+
+const roleQueues = new Map();
+
+if (ensureLedger(db)) save();
+
+function withRoleLock(userId, roleId, operation) {
+  const key = `${userId}:${roleId}`;
+  const previous = roleQueues.get(key) || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+  roleQueues.set(key, current);
+  return current.finally(() => {
+    if (roleQueues.get(key) === current) roleQueues.delete(key);
+  });
+}
+
+async function grantRole(member, { userId, roleId, grantId, source, expiresAt = null }) {
+  return withRoleLock(userId, roleId, async () => {
+    const existingGrants = getGrants(db, userId, roleId);
+    let changed = false;
+
+    if (expiresAt !== null && member.roles.cache.has(roleId) && Object.keys(existingGrants).length === 0) {
+      changed = addGrant(db, userId, roleId, 'legacy:existing-role', 'permanent') || changed;
+    }
+
+    changed = addGrant(db, userId, roleId, grantId, source, expiresAt) || changed;
+    if (changed) save();
+    if (!member.roles.cache.has(roleId)) await member.roles.add(roleId);
+  });
+}
+
+async function supersedeRole(member, userId, roleId) {
+  return withRoleLock(userId, roleId, async () => {
+    const result = supersedeNonBoosterGrants(db, userId, roleId);
+    if (result.hasActive) {
+      if (result.changed) save();
+      return;
+    }
+
+    if (member.roles.cache.has(roleId)) await member.roles.remove(roleId);
+    const deleted = deleteRoleGrants(db, userId, roleId);
+    if (result.changed || deleted) save();
+  });
+}
+
+async function reconcileExpiredRoles(client) {
+  const guild = await client.guilds.fetch(process.env.GUILD_ID);
+
+  for (const [userId, userRoles] of Object.entries(db.roleEntitlements || {})) {
+    for (const [roleId] of Object.entries(userRoles)) {
+      await withRoleLock(userId, roleId, async () => {
+        const grants = getGrants(db, userId, roleId);
+        const hasExpired = Object.values(grants)
+          .some((grant) => grant.expiresAt !== null && grant.expiresAt <= Date.now());
+        if (!hasExpired) return;
+
+        if (hasActiveGrant(db, userId, roleId)) {
+          pruneExpiredGrants(db, userId, roleId);
+          save();
+          return;
+        }
+
+        let member;
+        try {
+          member = await guild.members.fetch(userId);
+        } catch (error) {
+          if (error.code === 10007 || error.code === 10013) {
+            deleteRoleGrants(db, userId, roleId);
+            save();
+            return;
+          }
+          console.error(`[Expiración] No se pudo consultar el miembro ${userId}; se reintentará:`, error.message);
+          return;
+        }
+
+        if (hasActiveGrant(db, userId, roleId)) {
+          pruneExpiredGrants(db, userId, roleId);
+          save();
+          return;
+        }
+
+        try {
+          if (member.roles.cache.has(roleId)) await member.roles.remove(roleId);
+        } catch (error) {
+          console.error(`[Expiración] No se pudo quitar el rol ${roleId}; se reintentará:`, error.message);
+          return;
+        }
+        deleteRoleGrants(db, userId, roleId);
+        save();
+      });
+    }
+  }
+}
+
+function getGrantExpiration(userId, roleId, grantId) {
+  return getGrant(db, userId, roleId, grantId)?.expiresAt ?? null;
+}
+
+function getLatestExpiration(userId, roleId, source) {
+  return latestExpiry(db, userId, roleId, source);
+}
+
+module.exports = {
+  db,
+  getGrantExpiration,
+  getLatestExpiration,
+  grantRole,
+  reconcileExpiredRoles,
+  save,
+  supersedeRole,
+};
+
+```
+`src\services\roleLedger.js`:
+
+```js
+function ensureLedger(db) {
+  db.roleEntitlements ||= {};
+  db.roles ||= {};
+  let changed = false;
+
+  for (const [legacyKey, role] of Object.entries(db.roles)) {
+    if (!role || typeof role !== 'object' || !Number.isFinite(Number(role.expiresAt))) continue;
+
+    const separator = legacyKey.indexOf(':');
+    const userId = role.userId || (separator === -1 ? legacyKey : legacyKey.slice(0, separator));
+    const roleId = role.roleId || (separator === -1 ? null : legacyKey.slice(separator + 1));
+    if (!userId || !roleId) continue;
+
+    const source = role.userId ? 'purchase' : 'booster';
+    addGrant(db, userId, roleId, `legacy:${legacyKey}`, source, Number(role.expiresAt));
+    delete db.roles[legacyKey];
+    changed = true;
+  }
+
+  return changed;
+}
+
+function getGrants(db, userId, roleId) {
+  return db.roleEntitlements?.[userId]?.[roleId]?.grants || {};
+}
+
+function getGrant(db, userId, roleId, grantId) {
+  return getGrants(db, userId, roleId)[grantId];
+}
+
+function addGrant(db, userId, roleId, grantId, source, expiresAt = null) {
+  db.roleEntitlements ||= {};
+  const userGrants = db.roleEntitlements[userId] ||= {};
+  const roleEntry = userGrants[roleId] ||= { grants: {} };
+  if (roleEntry.grants[grantId]) return false;
+  roleEntry.grants[grantId] = { source, expiresAt };
+  return true;
+}
+
+function latestExpiry(db, userId, roleId, source, now = Date.now()) {
+  return Object.values(getGrants(db, userId, roleId))
+    .filter((grant) => grant.source === source && grant.expiresAt > now)
+    .reduce((latest, grant) => Math.max(latest, grant.expiresAt), now);
+}
+
+function hasActiveGrant(db, userId, roleId, now = Date.now()) {
+  return Object.values(getGrants(db, userId, roleId))
+    .some((grant) => grant.expiresAt === null || grant.expiresAt > now);
+}
+
+function removeExpiredGrants(db, userId, roleId, now = Date.now()) {
+  const grants = getGrants(db, userId, roleId);
+  let changed = false;
+  for (const [grantId, grant] of Object.entries(grants)) {
+    if (grant.expiresAt !== null && grant.expiresAt <= now) {
+      delete grants[grantId];
+      changed = true;
+    }
+  }
+  return { changed, hasActive: hasActiveGrant(db, userId, roleId, now) };
+}
+
+function pruneExpiredGrants(db, userId, roleId, now = Date.now()) {
+  const grants = getGrants(db, userId, roleId);
+  let changed = false;
+  for (const [grantId, grant] of Object.entries(grants)) {
+    if (grant.expiresAt !== null && grant.expiresAt <= now) {
+      delete grants[grantId];
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function supersedeNonBoosterGrants(db, userId, roleId, now = Date.now()) {
+  const grants = getGrants(db, userId, roleId);
+  let changed = false;
+  for (const [grantId, grant] of Object.entries(grants)) {
+    if (grant.source !== 'booster') {
+      delete grants[grantId];
+      changed = true;
+    } else if (grant.expiresAt !== null && grant.expiresAt <= now) {
+      delete grants[grantId];
+      changed = true;
+    }
+  }
+  return { changed, hasActive: hasActiveGrant(db, userId, roleId, now) };
+}
+
+function deleteRoleGrants(db, userId, roleId) {
+  const userGrants = db.roleEntitlements?.[userId];
+  if (!userGrants || !userGrants[roleId]) return false;
+  delete userGrants[roleId];
+  if (Object.keys(userGrants).length === 0) delete db.roleEntitlements[userId];
+  return true;
+}
+
+module.exports = {
+  addGrant,
+  deleteRoleGrants,
+  ensureLedger,
+  getGrant,
+  getGrants,
+  hasActiveGrant,
+  latestExpiry,
+  pruneExpiredGrants,
+  removeExpiredGrants,
+  supersedeNonBoosterGrants,
+};
+
+```
+`src\services\store.js`:
+
+```js
+const fs = require('fs');
+const path = require('path');
+
+const FILE = path.join(__dirname, '../../data/boosts.json');
+let db = { pending: {}, roles: {}, processed: {}, roleEntitlements: {}, boostEvents: {} };
+
+try {
+  db = { ...db, ...JSON.parse(fs.readFileSync(FILE, 'utf8')) };
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+}
+
+function save() {
+  fs.mkdirSync(path.dirname(FILE), { recursive: true });
+  fs.writeFileSync(`${FILE}.tmp`, JSON.stringify(db, null, 2));
+  fs.renameSync(`${FILE}.tmp`, FILE);
+}
+
+module.exports = { db, save };
+```
+`test-boost.js`:
+
+```js
+require('dotenv').config();
+
+// Uso: node test-boost.js [userId] [cantidad 1|2] [modo multi|single]
+//   node test-boost.js                              -> 1 boost para tu usuario
+//   node test-boost.js 317050947622928384 2         -> 2 boosts (2 mensajes)
+//   node test-boost.js 317050947622928384 2 single  -> 2 boosts (1 mensaje con "2")
+const [userId = '317050947622928384', count = '1', mode = 'multi'] = process.argv.slice(2);
+
+(async () => {
+  if (!process.env.DEV_TOOLS_KEY) {
+    throw new Error('Falta DEV_TOOLS_KEY en el .env del bot.');
+  }
+  if (!/^\d{15,25}$/.test(userId)) throw new Error('El userId debe ser el ID numérico de Discord.');
+  if (!['1', '2'].includes(count)) throw new Error('La cantidad debe ser 1 o 2.');
+  if (!['multi', 'single'].includes(mode)) throw new Error('El modo debe ser multi o single.');
+
+  const url = `http://127.0.0.1:${process.env.PORT || 3000}/dev/fake-boost?`
+    + new URLSearchParams({ userId, count, mode });
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'x-dev-key': process.env.DEV_TOOLS_KEY },
+  });
+  const body = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${body}`);
+
+  console.log(body);
+  console.log(`Ejecutá /reclamar-boost desde la cuenta de Discord ${userId}.`);
+})().catch((error) => {
+  console.error('No se pudo completar la prueba:', error.cause?.code || error.message);
+  process.exitCode = 1;
+});
+```
+`test\accountLinks.test.js`:
+
+```js
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+const { AccountLinkStore, CODE_TTL_MS } = require('../src/services/accountLinks');
+
+function createStore(t) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unlpcraft-links-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  return new AccountLinkStore(path.join(directory, 'links.json'));
+}
+
+test('link codes use a plugin-compatible format, expire, and can only be redeemed once', (t) => {
+  const store = createStore(t);
+  const now = 1_700_000_000_000;
+  const { code, expiresAt } = store.createCode('12345678901234567', now);
+  assert.match(code, /^[a-f0-9]{48}$/i);
+  assert.equal(expiresAt, now + CODE_TTL_MS);
+
+  const link = store.linkPlayer({
+    code,
+    uuid: '123e4567-e89b-12d3-a456-426614174000',
+    playerName: 'PlayerOne',
+    groups: ['default'],
+  }, now + 1);
+  assert.equal(link.discordUserId, '12345678901234567');
+
+  assert.throws(() => store.linkPlayer({
+    code,
+    uuid: '223e4567-e89b-12d3-a456-426614174000',
+    playerName: 'PlayerTwo',
+    groups: [],
+  }, now + 2), { code: 'INVALID_CODE' });
+});
+
+test('link code expires and the same completed request is safe to retry', (t) => {
+  const store = createStore(t);
+  const now = 1_700_000_000_000;
+  const expired = store.createCode('12345678901234567', now);
+  assert.throws(() => store.linkPlayer({
+    code: expired.code,
+    uuid: '123e4567-e89b-12d3-a456-426614174000',
+    playerName: 'PlayerOne',
+    groups: [],
+  }, expired.expiresAt), { code: 'INVALID_CODE' });
+
+  const current = store.createCode('12345678901234567', expired.expiresAt + 1);
+  const request = {
+    code: current.code,
+    uuid: '123e4567-e89b-12d3-a456-426614174000',
+    playerName: 'PlayerOne',
+    groups: ['vip'],
+  };
+  store.linkPlayer(request, current.expiresAt - 1);
+  const retry = store.linkPlayer(request, current.expiresAt + 100);
+  assert.equal(retry.discordUserId, '12345678901234567');
+  assert.deepEqual(retry.groups, ['vip']);
+});
+
+test('a Discord account can refresh its existing link but cannot link a second Minecraft UUID', (t) => {
+  const store = createStore(t);
+  const firstCode = store.createCode('12345678901234567');
+  store.linkPlayer({
+    code: firstCode.code,
+    uuid: '123e4567-e89b-12d3-a456-426614174000',
+    playerName: 'PlayerOne',
+    groups: [],
+  });
+  const refreshCode = store.createCode('12345678901234567');
+  store.linkPlayer({
+    code: refreshCode.code,
+    uuid: '123e4567-e89b-12d3-a456-426614174000',
+    playerName: 'PlayerOne',
+    groups: ['vip'],
+  });
+  const secondCode = store.createCode('12345678901234567');
+
+  assert.throws(() => store.linkPlayer({
+    code: secondCode.code,
+    uuid: '223e4567-e89b-12d3-a456-426614174000',
+    playerName: 'PlayerTwo',
+    groups: [],
+  }), { code: 'CONFLICT' });
+});
+
+test('a Minecraft UUID cannot be linked to a different Discord account', (t) => {
+  const store = createStore(t);
+  const firstCode = store.createCode('12345678901234567');
+  store.linkPlayer({
+    code: firstCode.code,
+    uuid: '123e4567-e89b-12d3-a456-426614174000',
+    playerName: 'PlayerOne',
+    groups: [],
+  });
+  const secondCode = store.createCode('22345678901234567');
+
+  assert.throws(() => store.linkPlayer({
+    code: secondCode.code,
+    uuid: '123e4567-e89b-12d3-a456-426614174000',
+    playerName: 'PlayerOne',
+    groups: [],
+  }), { code: 'CONFLICT' });
+});
+
+```
+`test\boostQueue.test.js`:
+
+```js
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { recordBoost, settleBoost } = require('../src/services/boostQueue');
+
+test('boost window accumulates counts and persists enough data to resume after restart', () => {
+  const db = { pending: {}, boostEvents: {} };
+  recordBoost(db, 'user', 1, 'channel', 100);
+  recordBoost(db, 'user', 2, 'channel', 200);
+
+  const restored = JSON.parse(JSON.stringify(db));
+  assert.equal(settleBoost(restored, 'user', 199, 'claim-id'), null);
+  const result = settleBoost(restored, 'user', 200, 'claim-id');
+
+  assert.deepEqual(result, {
+    claim: { id: 'claim-id', boosts: 2, createdAt: 200 },
+    channelId: 'channel',
+  });
+  assert.equal(restored.boostEvents.user, undefined);
+  assert.equal(restored.pending.user.length, 1);
+});
+
+```
+`test\luckpermsRoleMap.test.js`:
+
+```js
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const { loadRoleMap } = require('../src/services/luckpermsRoleMap');
+const ranks = require('../src/config/ranks');
+
+test('LuckPerms role map contains the provided groups and does not map Discord booster role', () => {
+  const map = loadRoleMap();
+
+  assert.equal(map.oro, '1403748269749960724');
+  assert.equal(map['netherite+'], '1539732504955719871');
+  assert.equal(map.fac_laburante, '1491848925500412085');
+  assert.equal(map.fac_trabajosocial, '1408551608257876069');
+  assert.equal(Object.hasOwn(map, 'booster'), false);
+});
+
+test('boost rank roles use the same IDs from the JSON role map', () => {
+  const map = loadRoleMap();
+
+  assert.equal(ranks.oro.discordRoleId, map.oro);
+  assert.equal(ranks.diamante.discordRoleId, map.diamante);
+  assert.equal(ranks.netherite.discordRoleId, map.netherite);
+  assert.equal(ranks.netheriteplus.discordRoleId, map['netherite+']);
+});
+
+test('role map loader rejects invalid or missing Discord role IDs', (t) => {
+  const file = path.join(__dirname, 'invalid-role-map.tmp.json');
+  t.after(() => {
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  });
+  fs.writeFileSync(file, JSON.stringify({ vip: null }));
+
+  assert.throws(() => loadRoleMap(file), /Invalid Discord role mapping/);
+});
+
+```
+`test\minecraftLinkRoute.test.js`:
+
+```js
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+const { AccountLinkStore } = require('../src/services/accountLinks');
+const registerMinecraftLinkRoute = require('../src/routes/minecraftLink');
+
+function setupRoute(t, existingRoleIds = []) {
+  const previousKey = process.env.MINECRAFT_LINK_API_KEY;
+  const previousGuild = process.env.GUILD_ID;
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unlpcraft-route-'));
+  const links = new AccountLinkStore(path.join(directory, 'links.json'));
+  const roles = new Set(existingRoleIds);
+  const member = {
+    roles: {
+      cache: { has: (roleId) => roles.has(roleId) },
+      add: async (roleId) => roles.add(roleId),
+      remove: async (roleId) => roles.delete(roleId),
+    },
+  };
+  const client = {
+    guilds: {
+      fetch: async () => ({ members: { fetch: async () => member } }),
+    },
+  };
+  const routes = new Map();
+  registerMinecraftLinkRoute(
+    { post: (url, handler) => routes.set(url, handler) },
+    client,
+    links,
+    () => ({
+      vip: '98765432109876543',
+      'netherite+': '87654321098765432',
+    }),
+  );
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.MINECRAFT_LINK_API_KEY;
+    else process.env.MINECRAFT_LINK_API_KEY = previousKey;
+    if (previousGuild === undefined) delete process.env.GUILD_ID;
+    else process.env.GUILD_ID = previousGuild;
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  process.env.MINECRAFT_LINK_API_KEY = 'test-secret';
+  process.env.GUILD_ID = '12345678901234567';
+
+  const handler = routes.get('/api/minecraft/link');
+  const invoke = async (body, apiKey = 'test-secret') => {
+    const result = {
+      statusCode: 200,
+      body: undefined,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(value) {
+        this.body = value;
+        return this;
+      },
+    };
+    await handler({ body, get: (name) => name.toLowerCase() === 'x-api-key' ? apiKey : undefined }, result);
+    return result;
+  };
+
+  return { invoke, links, roles };
+}
+
+test('Minecraft link endpoint authenticates the plugin and applies configured roles', async (t) => {
+  const { invoke, links, roles } = setupRoute(t);
+  const { code } = links.createCode('12345678901234567');
+  const body = {
+    code,
+    player: { uuid: '123e4567-e89b-12d3-a456-426614174000', name: 'PlayerOne' },
+    groups: ['default', 'vip', 'netherite+'],
+  };
+
+  const unauthorized = await invoke(body, 'wrong-secret');
+  assert.equal(unauthorized.statusCode, 401);
+
+  const response = await invoke(body);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.ok, true);
+  assert.deepEqual([...roles], ['98765432109876543', '87654321098765432']);
+  assert.equal(response.body.synchronizedRoles, 2);
+  assert.deepEqual(
+    links.data.linksByUuid['123e4567-e89b-12d3-a456-426614174000'].managedRoleIds,
+    ['98765432109876543', '87654321098765432'],
+  );
+});
+
+test('Minecraft link endpoint rejects malformed requests without consuming a code', async (t) => {
+  const { invoke, links } = setupRoute(t);
+  const { code } = links.createCode('12345678901234567');
+
+  const response = await invoke({
+    code,
+    player: { uuid: 'not-a-uuid', name: 'PlayerOne' },
+    groups: [],
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(Object.keys(links.data.pendingCodes).length, 1);
+});
+
+test('role synchronization does not take ownership of an already assigned role', async (t) => {
+  const roleId = '98765432109876543';
+  const { invoke, links, roles } = setupRoute(t, [roleId]);
+  const { code } = links.createCode('12345678901234567');
+  const uuid = '123e4567-e89b-12d3-a456-426614174000';
+
+  const linked = await invoke({
+    code,
+    player: { uuid, name: 'PlayerOne' },
+    groups: ['vip'],
+  });
+  assert.equal(linked.statusCode, 200);
+  assert.deepEqual(links.data.linksByUuid[uuid].managedRoleIds, []);
+
+  const refreshCode = links.createCode('12345678901234567').code;
+  const refreshed = await invoke({
+    code: refreshCode,
+    player: { uuid, name: 'PlayerOne' },
+    groups: [],
+  });
+  assert.equal(refreshed.statusCode, 200);
+  assert.deepEqual([...roles], [roleId]);
+});
+
+```
+`test\onceOnlyDelivery.test.js`:
+
+```js
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { deliverOnce } = require('../src/services/onceOnlyDelivery');
+
+test('delivery state is persisted before sending and completed after success', async () => {
+  const record = {};
+  const snapshots = [];
+
+  await deliverOnce(record, 'moneyDelivery', 'eco give player 100', async () => {
+    assert.equal(record.moneyDelivery, 'processing');
+  }, () => snapshots.push(record.moneyDelivery));
+
+  assert.deepEqual(snapshots, ['processing', 'done']);
+});
+
+test('an ambiguous failure is marked for manual review and is never resent', async () => {
+  const record = {};
+  let sends = 0;
+
+  await assert.rejects(
+    deliverOnce(record, 'moneyDelivery', 'eco give player 100', async () => {
+      sends += 1;
+      throw new Error('connection lost');
+    }, () => {}),
+    { manualReview: true },
+  );
+  await assert.rejects(
+    deliverOnce(record, 'moneyDelivery', 'eco give player 100', async () => {
+      sends += 1;
+    }, () => {}),
+    { manualReview: true },
+  );
+
+  assert.equal(record.moneyDelivery, 'manual_review');
+  assert.equal(sends, 1);
+});
+
+```
+`test\reclamarBoost.test.js`:
+
+```js
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const command = require('../src/commands/reclamarBoost');
+
+test('boost claim fetches the GuildMember using the interaction user ID', async () => {
+  let fetchedUserId;
+  let reply;
+  const userId = `test-${Date.now()}`;
+
+  await command.execute({
+    deferReply: async () => {},
+    inGuild: () => true,
+    guild: {
+      members: {
+        fetch: async (id) => {
+          fetchedUserId = id;
+          return { id };
+        },
+      },
+    },
+    user: { id: userId },
+    options: { getString: () => 'MinecraftNick' },
+    editReply: async (message) => {
+      reply = message;
+    },
+  });
+
+  assert.equal(fetchedUserId, userId);
+  assert.equal(reply, 'No tenés recompensas de boost pendientes.');
+});
+
+```
+`test\roleLedger.test.js`:
+
+```js
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {
+  addGrant,
+  ensureLedger,
+  getGrants,
+  hasActiveGrant,
+  removeExpiredGrants,
+  supersedeNonBoosterGrants,
+} = require('../src/services/roleLedger');
+
+test('a booster expiration does not remove an independently purchased role', () => {
+  const db = { roleEntitlements: {}, roles: {} };
+  addGrant(db, 'user', 'diamond', 'purchase:1', 'purchase');
+  addGrant(db, 'user', 'diamond', 'booster:1', 'booster', 200);
+
+  const result = removeExpiredGrants(db, 'user', 'diamond', 201);
+
+  assert.equal(result.hasActive, true);
+  assert.equal(getGrants(db, 'user', 'diamond')['purchase:1'].expiresAt, null);
+  assert.equal(getGrants(db, 'user', 'diamond')['booster:1'], undefined);
+});
+
+test('superseding a purchased rank preserves an active booster grant', () => {
+  const db = { roleEntitlements: {}, roles: {} };
+  addGrant(db, 'user', 'diamond', 'purchase:1', 'purchase');
+  addGrant(db, 'user', 'diamond', 'booster:1', 'booster', 300);
+
+  const result = supersedeNonBoosterGrants(db, 'user', 'diamond', 200);
+
+  assert.equal(result.changed, true);
+  assert.equal(result.hasActive, true);
+  assert.equal(getGrants(db, 'user', 'diamond')['purchase:1'], undefined);
+  assert.ok(getGrants(db, 'user', 'diamond')['booster:1']);
+  assert.equal(hasActiveGrant(db, 'user', 'diamond', 200), true);
+});
+
+test('legacy purchase and booster expiration entries migrate to separate grants', () => {
+  const db = {
+    roleEntitlements: {},
+    roles: {
+      user: { roleId: 'diamond', expiresAt: 300 },
+      'user:plus': { userId: 'user', roleId: 'plus', expiresAt: 400 },
+    },
+  };
+
+  assert.equal(ensureLedger(db), true);
+  assert.equal(db.roles.user, undefined);
+  assert.equal(db.roles['user:plus'], undefined);
+  assert.equal(getGrants(db, 'user', 'diamond')['legacy:user'].source, 'booster');
+  assert.equal(getGrants(db, 'user', 'plus')['legacy:user:plus'].source, 'purchase');
+});
+
+test('replaying the same purchase grant does not extend its expiration', () => {
+  const db = { roleEntitlements: {}, roles: {} };
+  const firstExpiration = 500;
+  const retryExpiration = 900;
+
+  assert.equal(addGrant(db, 'user', 'plus', 'purchase:order-1', 'purchase', firstExpiration), true);
+  assert.equal(addGrant(db, 'user', 'plus', 'purchase:order-1', 'purchase', retryExpiration), false);
+  assert.equal(getGrants(db, 'user', 'plus')['purchase:order-1'].expiresAt, firstExpiration);
+});
+
+```

@@ -1,0 +1,52 @@
+plugins {
+    id 'java'
+}
+
+group = 'pro.unlpcraft'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = 'https://libraries.minecraft.net'
+        content {
+            includeGroup 'com.mojang'
+        }
+    }
+    maven {
+        url = 'https://repo.papermc.io/repository/maven-public/'
+        content {
+            includeGroup 'net.md-5'
+        }
+    }
+    maven {
+        url = 'https://repo.purpurmc.org/snapshots'
+        content {
+            includeGroup 'org.purpurmc.purpur'
+            includeGroup 'net.luckperms'
+        }
+    }
+}
+
+dependencies {
+    compileOnly 'org.purpurmc.purpur:purpur-api:26.2.build.2633-stable'
+    compileOnly 'net.luckperms:api:5.5'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+
+processResources {
+    filteringCharset = 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand(version: project.version)
+    }
+}

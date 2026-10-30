@@ -2,12 +2,9 @@ require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const loadEvents = require('./handlers/loadEvents');
 const express = require('express');
+
 const app = express();
-const path = require('path');
-
-app.use(express.static(path.join(__dirname, '../public')));
-
-require('./routes/auth')(app);
+app.use(express.json({ limit: '8kb', type: 'application/json' }));
 
 const client = new Client({
   intents: [
@@ -16,6 +13,9 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
   ],
 });
+
+require('./routes/dev')(app, client);
+require('./routes/minecraftLink')(app, client);
 
 loadEvents(client);
 client.login(process.env.DISCORD_TOKEN);

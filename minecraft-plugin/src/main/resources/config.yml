@@ -1,0 +1,8 @@
+# Debe apuntar a la futura ruta HTTPS del bot, no a la web ni al SFTP del hosting.
+link-endpoint: "https://BOT-DOMINIO.example/api/minecraft/link"
+
+# Debe coincidir con la clave que valide el endpoint del bot.
+# No compartas este archivo con la clave real ni la subas a Git.
+api-key: "REEMPLAZAR"
+
+request-timeout-seconds: 10

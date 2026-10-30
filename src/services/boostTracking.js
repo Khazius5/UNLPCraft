@@ -2,7 +2,7 @@ const { db, save } = require('./store');
 const { recordBoost } = require('./boostQueue');
 const { settlePendingBoost } = require('./boosts');
 
-const WINDOW_MS = 2 * 60 * 1000;
+const WINDOW_MS = 20 * 1000;
 const timers = new Map();
 
 db.boostEvents ||= {};

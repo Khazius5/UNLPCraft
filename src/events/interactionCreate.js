@@ -1,7 +1,11 @@
 const { MessageFlags } = require('discord.js');
 const reclamarBoost = require('../commands/reclamarBoost');
+const link = require('../commands/link');
 
-const commands = new Map([[reclamarBoost.data.name, reclamarBoost]]);
+const commands = new Map([
+  [reclamarBoost.data.name, reclamarBoost],
+  [link.data.name, link],
+]);
 
 module.exports = {
   name: 'interactionCreate',
