@@ -73,6 +73,7 @@ npm test
 | --- | --- |
 | `DISCORD_TOKEN` | Token del bot. |
 | `GUILD_ID` | ID del servidor donde opera el bot y registra los comandos slash. |
+| `ALERT_DISCORD_USER_ID` | ID de Discord que recibe alertas operativas por DM. Por defecto, se usa el ID configurado por el proyecto. |
 
 ### Minecraft / RCON
 
@@ -105,6 +106,7 @@ Generá `MINECRAFT_LINK_API_KEY` como un secreto aleatorio independiente (por ej
 - Ubicá el rol del bot por encima de los roles que deba asignar o quitar.
 - Configurá los IDs de roles de rangos y facultades en `src/config/luckperms-role-map.json`.
 - Mantené el bot en el servidor indicado por `GUILD_ID`.
+- Para recibir alertas, activá **Privacidad del servidor → Mensajes directos** (o **Ajustes de usuario → Privacidad y seguridad → Permitir mensajes directos de miembros del servidor**) para el servidor del bot. El bot envía un DM al administrador ante entregas de saldo y fallos que requieren atención.
 - Para el vínculo Minecraft, editá `src/config/luckperms-role-map.json`; el bot nunca asigna roles que no estén mapeados.
 
 Los IDs de Discord son identificadores de configuración, no credenciales secretas. No publiques el token ni las contraseñas de RCON.

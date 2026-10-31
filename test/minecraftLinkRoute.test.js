@@ -6,7 +6,12 @@ const test = require('node:test');
 const { AccountLinkStore } = require('../src/services/accountLinks');
 const registerMinecraftLinkRoute = require('../src/routes/minecraftLink');
 
-function setupRoute(t, existingRoleIds = []) {
+function setupRoute(
+  t,
+  existingRoleIds = [],
+  deliverInitialLinkReward = async () => {},
+  notifyAdmin = async () => {},
+) {
   const previousKey = process.env.MINECRAFT_LINK_API_KEY;
   const previousGuild = process.env.GUILD_ID;
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unlpcraft-route-'));
@@ -37,6 +42,8 @@ function setupRoute(t, existingRoleIds = []) {
       'netherite+': '87654321098765432',
       fac_informatica: '44444444444444444',
     }),
+    deliverInitialLinkReward,
+    notifyAdmin,
   );
   t.after(() => {
     if (previousKey === undefined) delete process.env.MINECRAFT_LINK_API_KEY;
@@ -70,7 +77,14 @@ function setupRoute(t, existingRoleIds = []) {
 }
 
 test('Minecraft link endpoint authenticates the plugin and applies configured roles', async (t) => {
-  const { invoke, links, roles } = setupRoute(t);
+  const rewards = [];
+  const alerts = [];
+  const { invoke, links, roles } = setupRoute(
+    t,
+    [],
+    async (playerName) => rewards.push(playerName),
+    async (event) => alerts.push(event),
+  );
   const { code } = links.createCode('12345678901234567');
   const body = {
     code,
@@ -90,6 +104,81 @@ test('Minecraft link endpoint authenticates the plugin and applies configured ro
     links.data.linksByUuid['123e4567-e89b-12d3-a456-426614174000'].managedRoleIds,
     ['98765432109876543', '87654321098765432'],
   );
+  assert.deepEqual(rewards, ['PlayerOne']);
+  assert.equal(
+    links.data.linksByUuid['123e4567-e89b-12d3-a456-426614174000'].initialLinkRewardDelivery,
+    'done',
+  );
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0].details, /\$20\.000/);
+});
+
+test('initial link reward is not repeated when the same link request is retried', async (t) => {
+  const rewards = [];
+  const { invoke, links } = setupRoute(t, [], async (playerName) => rewards.push(playerName));
+  const { code } = links.createCode('12345678901234567');
+  const body = {
+    code,
+    player: { uuid: '123e4567-e89b-12d3-a456-426614174000', name: 'PlayerOne' },
+    groups: ['vip'],
+  };
+
+  assert.equal((await invoke(body)).statusCode, 200);
+  assert.equal((await invoke(body)).statusCode, 200);
+  assert.deepEqual(rewards, ['PlayerOne']);
+});
+
+test('uncertain initial reward delivery is not automatically repeated', async (t) => {
+  let attempts = 0;
+  const alerts = [];
+  const { invoke, links } = setupRoute(t, [], async () => {
+    attempts += 1;
+    throw new Error('RCON unavailable');
+  }, async (event) => alerts.push(event));
+  const { code } = links.createCode('12345678901234567');
+  const body = {
+    code,
+    player: { uuid: '123e4567-e89b-12d3-a456-426614174000', name: 'PlayerOne' },
+    groups: ['vip'],
+  };
+
+  assert.equal((await invoke(body)).statusCode, 503);
+  assert.equal((await invoke(body)).statusCode, 503);
+  assert.equal(attempts, 1);
+  assert.equal(
+    links.data.linksByUuid['123e4567-e89b-12d3-a456-426614174000'].initialLinkRewardDelivery,
+    'manual_review',
+  );
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0].title, /REVISIÓN MANUAL/);
+  assert.match(alerts[0].details, /No volver a pagar/);
+});
+
+test('syncs and legacy link retries do not grant the initial link reward', async (t) => {
+  const rewards = [];
+  const { invoke, links } = setupRoute(t, [], async (playerName) => rewards.push(playerName));
+  const { code } = links.createCode('12345678901234567');
+  const uuid = '123e4567-e89b-12d3-a456-426614174000';
+  links.linkPlayer({
+    code,
+    uuid,
+    playerName: 'PlayerOne',
+    groups: ['vip'],
+  });
+  delete links.data.linksByUuid[uuid].initialLinkRewardDelivery;
+  links.save();
+
+  assert.equal((await invoke({
+    code,
+    player: { uuid, name: 'PlayerOne' },
+    groups: ['vip'],
+  })).statusCode, 200);
+  assert.equal((await invoke({
+    action: 'sync',
+    player: { uuid, name: 'PlayerOne' },
+    groups: ['vip'],
+  })).statusCode, 200);
+  assert.deepEqual(rewards, []);
 });
 
 test('Minecraft link endpoint rejects malformed requests without consuming a code', async (t) => {

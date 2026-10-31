@@ -82,6 +82,7 @@ class AccountLinkStore {
       playerName,
       groups,
       managedRoleIds: existing?.managedRoleIds || [],
+      initialLinkRewardDelivery: existing ? existing.initialLinkRewardDelivery : 'pending',
       lastCodeHash: codeHash,
       linkedAt: existing?.linkedAt || now,
       updatedAt: now,
@@ -89,6 +90,40 @@ class AccountLinkStore {
     this.data.linksByUuid[uuid] = link;
     this.save();
     return { uuid, ...link };
+  }
+
+  beginInitialLinkReward(uuid) {
+    const link = this.data.linksByUuid[uuid];
+    if (!link) throw new AccountLinkError('NOT_LINKED', 'El jugador no está vinculado.');
+    if (link.initialLinkRewardDelivery === 'done') return false;
+    if (link.initialLinkRewardDelivery === undefined) return false;
+    if (link.initialLinkRewardDelivery !== 'pending') {
+      throw new AccountLinkError(
+        'REWARD_MANUAL_REVIEW',
+        'La entrega del saldo requiere revisión manual para evitar duplicarla.',
+      );
+    }
+
+    link.initialLinkRewardDelivery = 'processing';
+    this.save();
+    return true;
+  }
+
+  completeInitialLinkReward(uuid) {
+    const link = this.data.linksByUuid[uuid];
+    if (!link || link.initialLinkRewardDelivery !== 'processing') {
+      throw new AccountLinkError('REWARD_STATE', 'El estado de entrega del saldo no es válido.');
+    }
+    link.initialLinkRewardDelivery = 'done';
+    this.save();
+  }
+
+  markInitialLinkRewardForReview(uuid) {
+    const link = this.data.linksByUuid[uuid];
+    if (!link || link.initialLinkRewardDelivery !== 'processing') return false;
+    link.initialLinkRewardDelivery = 'manual_review';
+    this.save();
+    return true;
   }
 
   updateLinkedPlayer({ uuid, playerName, groups }, now = Date.now()) {

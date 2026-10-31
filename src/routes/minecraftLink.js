@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const { AccountLinkError } = require('../services/accountLinks');
 const accountLinks = require('../services/accountLinksStore');
+const { sendAdminAlert } = require('../services/adminAlerts');
+const mc = require('../services/minecraft');
 const {
   getHighestRankGroup,
   loadRoleMap,
@@ -10,7 +12,22 @@ const {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const GROUP_PATTERN = /^[A-Za-z0-9_.+-]{1,64}$/;
 
-module.exports = (app, client, links = accountLinks, getRoleMap = loadRoleMap) => {
+module.exports = (
+  app,
+  client,
+  links = accountLinks,
+  getRoleMap = loadRoleMap,
+  deliverInitialLinkReward = (playerName) => mc.run(`eco give ${playerName} 20000`, 0),
+  notifyAdmin = (event) => sendAdminAlert(client, event),
+) => {
+  const notify = async (event) => {
+    try {
+      await notifyAdmin(event);
+    } catch (error) {
+      console.error('Could not notify the administrator:', error.message);
+    }
+  };
+
   app.post('/api/minecraft/link', async (req, res) => {
     const expectedKey = process.env.MINECRAFT_LINK_API_KEY;
     if (!expectedKey || !process.env.GUILD_ID) {
@@ -104,6 +121,44 @@ module.exports = (app, client, links = accountLinks, getRoleMap = loadRoleMap) =
       }
 
       links.updateManagedRoles(player.uuid.toLowerCase(), managedRoleIds);
+      const alertContext = {
+        playerName: link.playerName,
+        uuid: player.uuid.toLowerCase(),
+        discordUserId: link.discordUserId,
+      };
+
+      if (action === 'link') {
+        try {
+          if (links.beginInitialLinkReward(player.uuid.toLowerCase())) {
+            await deliverInitialLinkReward(link.playerName);
+            links.completeInitialLinkReward(player.uuid.toLowerCase());
+            await notify({
+              ...alertContext,
+              title: 'Recompensa de vinculación entregada',
+              details: 'Se entregaron $20.000 de saldo in-game.',
+            });
+          }
+        } catch (error) {
+          let shouldNotify = true;
+          try {
+            shouldNotify = links.markInitialLinkRewardForReview(player.uuid.toLowerCase());
+          } catch (saveError) {
+            console.error('Could not persist the link reward review status:', saveError.message);
+          }
+          console.error('Initial Minecraft link reward requires manual review:', error.message);
+          if (shouldNotify) {
+            await notify({
+              ...alertContext,
+              title: 'REVISIÓN MANUAL: recompensa de vinculación',
+              details: `No se puede confirmar la entrega de $20.000. No volver a pagar sin verificar primero el saldo. Error: ${error.message}`,
+            });
+          }
+          return res.status(503).json({
+            error: 'Account linked, but the $20,000 reward requires manual review. Verify the balance before retrying.',
+          });
+        }
+      }
+
       return res.status(200).json({
         ok: true,
         linked: true,
@@ -112,6 +167,13 @@ module.exports = (app, client, links = accountLinks, getRoleMap = loadRoleMap) =
       });
     } catch (error) {
       console.error('Minecraft link saved, but Discord role synchronization failed:', error.message);
+      await notify({
+        playerName: link.playerName,
+        uuid: player.uuid.toLowerCase(),
+        discordUserId: link.discordUserId,
+        title: 'Falló la sincronización de roles de Discord',
+        details: `El vínculo quedó guardado, pero los roles no se pudieron sincronizar. Error: ${error.message}`,
+      });
       return res.status(503).json({ error: 'Account link saved, but Discord roles could not be synchronized. Retry the request.' });
     }
   });
